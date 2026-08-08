@@ -6,6 +6,56 @@
 
 يطبّق نمط **ReAct** (Reason + Act + Observe) مع **thinking native**، يحفظ **ذاكرة دائمة** عبر 7 أنواع، يبني **رسم معرفي تلقائياً** من محادثاتك، ويستدعي **17 أداة حقيقية** — مع **Human-in-the-loop** للعمليات الخطيرة.
 
+## 🆕 جديد في v3: وضع التطوير المستمر
+
+الآن يحتوي MiMo AI على **بيئة تطوير كاملة مدمجة** — نسخة من بيئتي أنا (الـ agent). فعّل **وضع التطوير** من الـ sidebar أو ⌘K، وستظهر لك 6 لوحات تطويرية:
+
+### 🧪 Sandbox Panel
+محرر كود مدمج مع تنفيذ فعلي:
+- **Python 3.12** sandbox معزول (subprocess + timeout 15s)
+- **JavaScript (Node.js)** sandbox
+- حفظ/تحميل مقتطفات من localStorage
+- رفع/تنزيل ملفات
+- Ctrl+Enter للتشغيل السريع
+- أمان: منع `os.system`, `subprocess`, `__import__`, `eval`, `exec`, `socket`, إلخ
+
+### 👁️ Preview Panel
+معاينة حية للموقع في iframe:
+- أوضاع أجهزة: Desktop / iPad / iPhone / متجاوب
+- تحكم بالتكبير (25% - 150%)
+- تاريخ التنقل (forward/back)
+- Console مدمج لرسائل iframe
+- فتح في تبويب خارجي
+
+### 🛠️ DevTools Panel
+أدوات تطوير احترافية بـ 4 تبويبات:
+- **Logs**: سجل حي من dev.log (HTTP requests + compile events + errors)
+- **Database**: عرض كل جداول Prisma مع counts حقيقية
+- **API Explorer**: 35 endpoint مع methods و descriptions
+- **Performance**: CPU + Memory + Uptime + Request count (live updates)
+
+### 📸 Snapshots Panel
+نظام لقطات مثل agent-browser:
+- التقاط لقطة للحالة الحالية
+- حفظ في `/workspace/snapshots/`
+- تنزيل كـ PNG
+- حذف فردي أو جماعي
+
+### 📦 Skills Browser
+تصفّح الـ 69 مهارة المتاحة في النظام:
+- مصنّفة في 7 فئات (AI, Code, Document, Image, Audio, Web, Data)
+- بحث فوري بالاسم أو الوصف
+- فلترة حسب الفئة
+- معاينة وصف كل مهارة
+
+### ♾️ Continuous Dev Panel
+مراقبة التطوير المستمر:
+- سجل أحداث حي (compile, HMR, reload)
+- تتبع تغييرات الملفات
+- إحصائيات: total reloads, total changes, avg compile time
+- زر "trigger reload" يدوي
+- تحديث تلقائي كل 2 ثانية
+
 ## ✨ المميزات الحقيقية (وليست mocks)
 
 ### 🧠 طبقة الذاكرة (7 أنواع)

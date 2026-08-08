@@ -255,4 +255,14 @@ export const APP_SECTIONS = [
   { id: 'settings',    ar: 'الإعدادات',        en: 'Settings',     icon: 'Settings' },
 ] as const
 
-export type AppSectionId = typeof APP_SECTIONS[number]['id']
+// Dev sections (visible only when devMode is on)
+export const DEV_SECTIONS = [
+  { id: 'continuous-dev', ar: 'التطوير المستمر', en: 'Continuous Dev', icon: 'Infinity' },
+  { id: 'sandbox',        ar: 'الـ Sandbox',     en: 'Sandbox',        icon: 'Code2' },
+  { id: 'preview',        ar: 'المعاينة',       en: 'Preview',        icon: 'Eye' },
+  { id: 'devtools',       ar: 'أدوات التطوير',  en: 'DevTools',       icon: 'TerminalSquare' },
+  { id: 'snapshot',       ar: 'اللقطات',        en: 'Snapshots',      icon: 'Camera' },
+  { id: 'skills',         ar: 'المهارات',       en: 'Skills',         icon: 'Package' },
+] as const
+
+export type AppSectionId = typeof APP_SECTIONS[number]['id'] | typeof DEV_SECTIONS[number]['id']
