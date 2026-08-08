@@ -8,13 +8,13 @@ import {
   MessageSquare, Brain, Share2, CheckSquare, Wrench,
   CalendarClock, Activity, ShieldCheck, Settings, LayoutDashboard,
   Sun, Moon, Command, ChevronRight, Sparkles, Code2, Eye,
-  TerminalSquare, Camera, Package, Infinity, Terminal,
+  TerminalSquare, Camera, Package, Terminal,
 } from 'lucide-react'
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   MessageSquare, Brain, Share2, CheckSquare, Wrench,
   CalendarClock, Activity, ShieldCheck, Settings, LayoutDashboard,
-  Code2, Eye, TerminalSquare, Camera, Package, Infinity,
+  Code2, Eye, TerminalSquare, Camera, Package,
 }
 
 export function Sidebar() {

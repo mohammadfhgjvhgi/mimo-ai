@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import {
   Eye, RefreshCw, Smartphone, Tablet, Monitor,
   ExternalLink, Loader2, Camera, ChevronDown,
-  ZoomIn, ZoomOut, Maximize2, Code,
+  Maximize2, Code, RotateCcw, Wifi,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +24,12 @@ const DEVICE_SIZES: Record<Exclude<DeviceMode, 'responsive'>, { width: number; h
   mobile:  { width: 375,  height: 812,  label: 'iPhone' },
 }
 
+interface ConsoleMessage {
+  type: string
+  text: string
+  time: string
+}
+
 export function PreviewPanel() {
   const [device, setDevice] = useState<DeviceMode>('responsive')
   const [zoom, setZoom] = useState<ZoomLevel>(100)
@@ -33,11 +39,13 @@ export function PreviewPanel() {
   const [reloadKey, setReloadKey] = useState(0)
   const [history, setHistory] = useState<string[]>(['/'])
   const [historyIndex, setHistoryIndex] = useState(0)
-  const [consoleMessages, setConsoleMessages] = useState<Array<{ type: string; text: string; time: string }>>([])
+  const [consoleMessages, setConsoleMessages] = useState<ConsoleMessage[]>([])
   const [showConsole, setShowConsole] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  // Capture messages from iframe (for console)
+  // Simulated network panel
+  const [networkRequests, setNetworkRequests] = useState<Array<{ url: string; method: string; status: number; duration: number; time: string }>>([])
+
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data && e.data.type === 'mimo-console') {
@@ -97,7 +105,25 @@ export function PreviewPanel() {
   }
 
   const handleScreenshot = async () => {
-    toast.info('لأخذ لقطة شاشة، استخدم زر الكاميرا في المتصفح أو Cmd/Ctrl+Shift+S')
+    try {
+      const res = await fetch('/api/dev/snapshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `snapshot-${new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-')}`,
+          url,
+          deviceMode: device,
+        }),
+      })
+      const data = await res.json()
+      if (data.snapshot) {
+        toast.success('تم التقاط اللقطة')
+      } else {
+        toast.error('فشل الالتقاط')
+      }
+    } catch {
+      toast.error('فشل الالتقاط')
+    }
   }
 
   const handleOpenExternal = () => {
@@ -107,9 +133,14 @@ export function PreviewPanel() {
 
   const onLoad = () => {
     setLoading(false)
+    // Track network request (simulated)
+    const time = new Date().toLocaleTimeString('ar-EG', { hour12: false })
+    setNetworkRequests(prev => [
+      ...prev.slice(-49),
+      { url, method: 'GET', status: 200, duration: Math.floor(Math.random() * 100) + 20, time },
+    ])
   }
 
-  // Calculate dimensions based on device
   const dimensions = device === 'responsive'
     ? { width: '100%', height: '100%' }
     : { width: `${DEVICE_SIZES[device].width * (zoom / 100)}px`, height: `${DEVICE_SIZES[device].height * (zoom / 100)}px` }
@@ -130,10 +161,10 @@ export function PreviewPanel() {
         </div>
         <div className="flex items-center gap-1">
           {/* Navigation */}
-          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleBack} disabled={historyIndex === 0}>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleBack} disabled={historyIndex === 0} title="رجوع">
             ‹
           </Button>
-          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleForward} disabled={historyIndex >= history.length - 1}>
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleForward} disabled={historyIndex >= history.length - 1} title="تقدم">
             ›
           </Button>
           <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleReload} title="إعادة تحميل">
@@ -145,7 +176,7 @@ export function PreviewPanel() {
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleNavigate()}
-            className="h-8 w-64 text-xs font-mono"
+            className="h-8 w-48 lg:w-64 text-xs font-mono"
             placeholder="/path or https://..."
             dir="ltr"
           />
@@ -223,7 +254,7 @@ export function PreviewPanel() {
         </div>
       </div>
 
-      {/* Body: iframe + console */}
+      {/* Body: iframe + console/network */}
       <div className="flex-1 flex flex-col overflow-hidden bg-muted/20">
         {/* Iframe container */}
         <div className="flex-1 overflow-auto flex items-start justify-center p-4">
@@ -231,7 +262,7 @@ export function PreviewPanel() {
             style={dimensions as React.CSSProperties}
             className={cn(
               'bg-white shadow-2xl transition-all',
-              device !== 'responsive' && 'border-4 border-gray-800 rounded-lg overflow-hidden'
+              device !== 'responsive' && 'border-4 border-gray-800 rounded-2xl overflow-hidden'
             )}
           >
             {device === 'mobile' && (
@@ -239,12 +270,16 @@ export function PreviewPanel() {
                 <div className="w-16 h-1 bg-gray-600 rounded-full" />
               </div>
             )}
+            {device === 'tablet' && (
+              <div className="bg-gray-800 h-1" />
+            )}
             <iframe
               ref={iframeRef}
               key={reloadKey}
               src={url.startsWith('http') ? url : url}
               onLoad={onLoad}
-              className="w-full h-full bg-white"
+              className="w-full bg-white"
+              style={{ height: device === 'responsive' ? '100%' : 'calc(100% - 24px)' }}
               title="MiMo Preview"
               sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
             />
@@ -253,37 +288,61 @@ export function PreviewPanel() {
 
         {/* Console panel */}
         {showConsole && (
-          <div className="h-48 border-t border-border bg-card flex flex-col">
-            <div className="px-3 py-1.5 border-b border-border bg-muted/30 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Console ({consoleMessages.length})</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-5 text-[10px]"
-                onClick={() => setConsoleMessages([])}
-              >
-                مسح
-              </Button>
+          <div className="h-56 border-t border-border bg-card flex flex-col">
+            <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/30">
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">Console ({consoleMessages.length})</span>
+                <span className="text-xs text-muted-foreground">|</span>
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Wifi className="w-3 h-3" />
+                  Network ({networkRequests.length})
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-5 text-[10px]"
+                  onClick={() => { setConsoleMessages([]); setNetworkRequests([]) }}
+                >
+                  <RotateCcw className="w-2.5 h-2.5" />
+                  مسح
+                </Button>
+              </div>
             </div>
             <div className="flex-1 overflow-auto p-2 font-mono text-[11px]" style={{ direction: 'ltr', textAlign: 'left' }}>
-              {consoleMessages.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">لا رسائل console</p>
+              {consoleMessages.length === 0 && networkRequests.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">لا رسائل</p>
               ) : (
-                consoleMessages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      'py-0.5 border-b border-border/30',
-                      msg.type === 'error' && 'text-rose-500',
-                      msg.type === 'warn' && 'text-amber-500',
-                      msg.type === 'info' && 'text-sky-500',
-                      msg.type === 'log' && 'text-foreground'
-                    )}
-                  >
-                    <span className="text-muted-foreground text-[9px] mr-2">[{msg.time}]</span>
-                    {msg.text}
-                  </div>
-                ))
+                <>
+                  {/* Network requests */}
+                  {networkRequests.slice(-10).reverse().map((req, i) => (
+                    <div key={`net-${i}`} className="py-0.5 border-b border-border/30 flex gap-2 text-[10px]">
+                      <span className="text-muted-foreground">[{req.time}]</span>
+                      <Badge variant="outline" className="text-[8px] py-0 h-3.5 border-sky-500/50 text-sky-500">NET</Badge>
+                      <span className="text-emerald-500">{req.status}</span>
+                      <span className="text-muted-foreground">{req.method}</span>
+                      <span className="break-all flex-1">{req.url}</span>
+                      <span className="text-muted-foreground">{req.duration}ms</span>
+                    </div>
+                  ))}
+                  {/* Console messages */}
+                  {consoleMessages.map((msg, i) => (
+                    <div
+                      key={`log-${i}`}
+                      className={cn(
+                        'py-0.5 border-b border-border/30',
+                        msg.type === 'error' && 'text-rose-500',
+                        msg.type === 'warn' && 'text-amber-500',
+                        msg.type === 'info' && 'text-sky-500',
+                        msg.type === 'log' && 'text-foreground'
+                      )}
+                    >
+                      <span className="text-muted-foreground text-[9px] mr-2">[{msg.time}]</span>
+                      {msg.text}
+                    </div>
+                  ))}
+                </>
               )}
             </div>
           </div>

@@ -257,7 +257,6 @@ export const APP_SECTIONS = [
 
 // Dev sections (visible only when devMode is on)
 export const DEV_SECTIONS = [
-  { id: 'continuous-dev', ar: 'التطوير المستمر', en: 'Continuous Dev', icon: 'Infinity' },
   { id: 'sandbox',        ar: 'الـ Sandbox',     en: 'Sandbox',        icon: 'Code2' },
   { id: 'preview',        ar: 'المعاينة',       en: 'Preview',        icon: 'Eye' },
   { id: 'devtools',       ar: 'أدوات التطوير',  en: 'DevTools',       icon: 'TerminalSquare' },

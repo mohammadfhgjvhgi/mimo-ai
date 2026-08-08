@@ -14,14 +14,14 @@ import {
 import {
   MessageSquare, Brain, Share2, CheckSquare, Wrench,
   CalendarClock, Activity, ShieldCheck, Settings, LayoutDashboard,
-  Code2, Eye, TerminalSquare, Camera, Package, Infinity,
+  Code2, Eye, TerminalSquare, Camera, Package,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   MessageSquare, Brain, Share2, CheckSquare, Wrench,
   CalendarClock, Activity, ShieldCheck, Settings, LayoutDashboard,
-  Code2, Eye, TerminalSquare, Camera, Package, Infinity,
+  Code2, Eye, TerminalSquare, Camera, Package,
 }
 
 export function CommandPalette() {
@@ -176,12 +176,12 @@ export function CommandPalette() {
             <CommandItem
               value="continuous dev تطوير مستمر hmr watch"
               onSelect={() => {
-                setActiveSection('continuous-dev')
+                setActiveSection('sandbox')
                 setCommandPaletteOpen(false)
               }}
             >
-              <Infinity className="w-4 h-4 ml-2" />
-              <span>التطوير المستمر</span>
+              <Code2 className="w-4 h-4 ml-2" />
+              <span>التطوير المستمر (Sandbox)</span>
             </CommandItem>
           </CommandGroup>
         )}
