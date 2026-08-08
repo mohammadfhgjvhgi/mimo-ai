@@ -257,7 +257,8 @@ export const APP_SECTIONS = [
 
 // Dev sections (visible only when devMode is on)
 export const DEV_SECTIONS = [
-  { id: 'sandbox',        ar: 'الـ Sandbox',     en: 'Sandbox',        icon: 'Code2' },
+  { id: 'dev-workspace',  ar: 'مساحة التطوير',  en: 'Dev Workspace',  icon: 'Code2' },
+  { id: 'sandbox',        ar: 'الـ Sandbox',     en: 'Sandbox',        icon: 'Terminal' },
   { id: 'preview',        ar: 'المعاينة',       en: 'Preview',        icon: 'Eye' },
   { id: 'devtools',       ar: 'أدوات التطوير',  en: 'DevTools',       icon: 'TerminalSquare' },
   { id: 'snapshot',       ar: 'اللقطات',        en: 'Snapshots',      icon: 'Camera' },

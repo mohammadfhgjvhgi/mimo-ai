@@ -14,7 +14,7 @@ import {
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   MessageSquare, Brain, Share2, CheckSquare, Wrench,
   CalendarClock, Activity, ShieldCheck, Settings, LayoutDashboard,
-  Code2, Eye, TerminalSquare, Camera, Package,
+  Code2, Eye, TerminalSquare, Camera, Package, Terminal,
 }
 
 export function Sidebar() {

@@ -11,6 +11,8 @@ import {
   Clock, Zap, Sparkles, ChevronDown, ChevronRight,
   MessageSquare, Mic, Image as ImageIcon, Volume2,
   FileText, Globe, Search, Copy, Check,
+  Terminal, Calculator, ClipboardList, Share2, BarChart3,
+  Target, Package, X, Plus,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
@@ -21,6 +23,7 @@ import { ConversationsSidebar } from '@/components/mimo/conversations-sidebar'
 import { VoiceInput } from '@/components/mimo/voice-input'
 import { ImageUpload } from '@/components/mimo/image-upload'
 import { MarkdownRenderer } from '@/components/mimo/markdown-renderer'
+import { SkillsSelector } from '@/components/mimo/skills-selector'
 
 const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   reasoning: Lightbulb,
@@ -29,6 +32,7 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   final_answer: Sparkles,
   memory_op: Database,
   kg_op: Network,
+  goal_decomposition: Target,
 }
 
 const STEP_COLORS: Record<string, string> = {
@@ -38,6 +42,7 @@ const STEP_COLORS: Record<string, string> = {
   final_answer: 'text-primary',
   memory_op: 'text-violet-500',
   kg_op: 'text-rose-500',
+  goal_decomposition: 'text-cyan-500',
 }
 
 const STEP_BG: Record<string, string> = {
@@ -47,6 +52,7 @@ const STEP_BG: Record<string, string> = {
   final_answer: 'bg-primary/5 border-primary/20',
   memory_op: 'bg-violet-500/5 border-violet-500/20',
   kg_op: 'bg-rose-500/5 border-rose-500/20',
+  goal_decomposition: 'bg-cyan-500/5 border-cyan-500/20',
 }
 
 const STEP_LABELS: Record<string, string> = {
@@ -56,9 +62,9 @@ const STEP_LABELS: Record<string, string> = {
   final_answer: 'الإجابة',
   memory_op: 'ذاكرة',
   kg_op: 'معرفة',
+  goal_decomposition: 'تفكيك الهدف',
 }
 
-// Tool-specific icons
 const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   web_search: Globe,
   page_reader: FileText,
@@ -70,21 +76,17 @@ const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   task_list: ClipboardList,
   code_execute: Terminal,
   calculator: Calculator,
-  chart_generate: BarChartIcon,
+  chart_generate: BarChart3,
   file_read: FileText,
   file_write: FileText,
   file_list: FileText,
 }
 
-// Import additional icons
-import {
-  Terminal, Calculator, ClipboardList, Share2, BarChart3 as BarChartIcon,
-} from 'lucide-react'
-
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
   const hasError = message.liveSteps?.some(s => s.status === 'error') ?? false
   const [stepsOpen, setStepsOpen] = useState(hasError)
+  const [thinkingOpen, setThinkingOpen] = useState(false)
 
   return (
     <div className={cn('flex gap-3 animate-slide-in-up', isUser && 'flex-row-reverse')}>
@@ -96,7 +98,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       </div>
 
       <div className={cn('flex-1 min-w-0', isUser && 'flex flex-col items-end')}>
-        {/* Header with role + time */}
+        {/* Header */}
         <div className={cn('flex items-center gap-2 mb-1', isUser && 'flex-row-reverse')}>
           <span className="text-xs font-semibold">
             {isUser ? 'أنت' : 'MiMo AI'}
@@ -109,7 +111,35 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               {message.liveSteps.length} خطوات
             </Badge>
           )}
+          {message.thinkingContent && (
+            <Badge variant="outline" className="text-[9px] py-0 h-4 border-amber-500/50 text-amber-500">
+              <Lightbulb className="w-2.5 h-2.5 ml-0.5" />
+              {message.thinkingContent.length} حرف تفكير
+            </Badge>
+          )}
         </div>
+
+        {/* Live thinking panel (separate from answer) */}
+        {!isUser && message.thinkingContent && (
+          <Collapsible open={thinkingOpen} onOpenChange={setThinkingOpen} className="mb-2 w-full">
+            <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 transition-colors px-2 py-1 rounded-md hover:bg-amber-500/10">
+              {thinkingOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              <Lightbulb className="w-3 h-3" />
+              <span>سجل التفكير (Thinking)</span>
+              {message.status === 'streaming' && (
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-1.5">
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-100 font-mono whitespace-pre-wrap break-words max-h-60 overflow-y-auto" dir="ltr">
+                {message.thinkingContent}
+                {message.status === 'streaming' && (
+                  <span className="inline-block w-1.5 h-3 bg-amber-500 animate-pulse-soft mr-0.5 align-middle" />
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {/* Live reasoning steps */}
         {!isUser && message.liveSteps && message.liveSteps.length > 0 && (
@@ -117,7 +147,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-accent/50">
               {stepsOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
               <Activity className="w-3 h-3" />
-              <span>سلسلة التفكير</span>
+              <span>سلسلة التنفيذ</span>
               <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">
                 {message.liveSteps.length}
               </span>
@@ -185,10 +215,18 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               <Copy className="w-3 h-3 ml-1" />
               نسخ
             </Button>
-            <span className="text-[9px]">
-              <Sparkles className="w-2.5 h-2.5 inline ml-0.5" />
-              GLM-4.6
-            </span>
+            {message.tokensUsed && (
+              <Badge variant="outline" className="text-[9px] py-0 h-4">
+                <Zap className="w-2.5 h-2.5 ml-0.5" />
+                {message.tokensUsed} tok
+              </Badge>
+            )}
+            {message.durationMs && (
+              <Badge variant="outline" className="text-[9px] py-0 h-4">
+                <Clock className="w-2.5 h-2.5 ml-0.5" />
+                {(message.durationMs / 1000).toFixed(1)}ث
+              </Badge>
+            )}
           </div>
         )}
       </div>
@@ -196,13 +234,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   )
 }
 
-// Step card with proper tool result rendering
+// Step card with tool-specific rendering
 function StepCard({ step, index }: { step: AgentStep; index: number }) {
   const Icon = STEP_ICONS[step.type] ?? Activity
   const color = STEP_COLORS[step.type] ?? 'text-muted-foreground'
   const bg = STEP_BG[step.type] ?? 'bg-muted/30 border-border'
-
-  // Special rendering for tool calls with specific tools
   const toolIcon = step.toolName ? TOOL_ICONS[step.toolName] : null
   const ToolIcon = toolIcon ?? Icon
 
@@ -218,6 +254,7 @@ function StepCard({ step, index }: { step: AgentStep; index: number }) {
           <span className="text-[10px] font-mono text-muted-foreground">{step.toolName}</span>
         )}
         {step.status === 'pending' && <Loader2 className="w-3 h-3 animate-spin mr-auto" />}
+        {step.status === 'streaming' && <Loader2 className="w-3 h-3 animate-spin mr-auto" />}
         {step.status === 'success' && <CheckCircle2 className="w-3 h-3 text-emerald-500 mr-auto" />}
         {step.status === 'error' && <XCircle className="w-3 h-3 text-rose-500 mr-auto" />}
         {step.durationMs !== undefined && step.durationMs > 0 && (
@@ -226,7 +263,6 @@ function StepCard({ step, index }: { step: AgentStep; index: number }) {
       </div>
       <div className="text-muted-foreground break-words text-[11px]">{step.content}</div>
 
-      {/* Tool input - compact */}
       {step.toolInput && Object.keys(step.toolInput).length > 0 && (
         <div className="mt-1.5 rounded bg-background/50 border border-border/50 p-1.5" dir="ltr">
           <div className="text-[9px] text-muted-foreground mb-0.5 uppercase">Input</div>
@@ -236,7 +272,6 @@ function StepCard({ step, index }: { step: AgentStep; index: number }) {
         </div>
       )}
 
-      {/* Tool result - with special rendering for charts/images */}
       {step.toolResult !== undefined && step.toolResult !== null && (
         <ToolResultRenderer result={step.toolResult} toolName={step.toolName} />
       )}
@@ -267,7 +302,7 @@ function ToolResultRenderer({ result, toolName }: { result: unknown; toolName?: 
     )
   }
 
-  // Web search results - render as cards
+  // Web search results
   if (toolName === 'web_search' && typeof result === 'object' && result !== null) {
     const r = result as Record<string, unknown>
     const results = Array.isArray(r.results) ? r.results : []
@@ -329,7 +364,7 @@ function ToolResultRenderer({ result, toolName }: { result: unknown; toolName?: 
   )
 }
 
-// TTS playback helper
+// TTS playback
 let currentAudio: HTMLAudioElement | null = null
 function playTTS(text: string) {
   if (currentAudio) {
@@ -364,14 +399,16 @@ function playTTS(text: string) {
 
 export function ChatPanel() {
   const {
-    messages, addMessage, updateMessage, appendToMessage, addLiveStep,
+    messages, addMessage, updateMessage, appendToMessage, appendToThinking, addLiveStep,
     isStreaming, setIsStreaming, setLastRunStats,
+    goalMode, setGoalMode, activeSkills, clearSkills,
   } = useChatStore()
   const { activeConversationId, setActiveConversationId } = useAppStore()
   const [input, setInput] = useState('')
   const [conversationsOpen, setConversationsOpen] = useState(false)
   const [voiceMode, setVoiceMode] = useState(false)
   const [imageData, setImageData] = useState<string | null>(null)
+  const [skillsOpen, setSkillsOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -410,6 +447,7 @@ export function ChatPanel() {
       id: assistantId,
       role: 'assistant',
       content: '',
+      thinkingContent: '',
       status: 'streaming',
       liveSteps: [],
       createdAt: new Date().toISOString(),
@@ -424,6 +462,8 @@ export function ChatPanel() {
           message: trimmed,
           conversationId: activeConversationId,
           imageData,
+          goalMode,
+          activeSkills: activeSkills.length > 0 ? activeSkills : undefined,
         }),
       })
 
@@ -463,15 +503,23 @@ export function ChatPanel() {
                 timestamp: data.timestamp ?? new Date().toISOString(),
               }
               addLiveStep(assistantId, step)
+            } else if (eventType === 'thinking') {
+              appendToThinking(assistantId, data.token)
             } else if (eventType === 'token') {
               appendToMessage(assistantId, data.token)
             } else if (eventType === 'done') {
-              updateMessage(assistantId, { status: 'completed' })
+              updateMessage(assistantId, {
+                status: 'completed',
+                tokensUsed: data.tokensUsed,
+                thinkingTokens: data.thinkingTokens,
+                durationMs: data.totalDurationMs,
+              })
               setLastRunStats({
                 traceId: data.traceId,
                 toolCallsCount: data.toolCallsCount,
                 tokensUsed: data.tokensUsed,
                 totalDurationMs: data.totalDurationMs,
+                thinkingTokens: data.thinkingTokens,
               })
               toast.success(`اكتمل • ${data.toolCallsCount} أداة • ${data.tokensUsed} توكن • ${(data.totalDurationMs / 1000).toFixed(1)}ث`)
             } else if (eventType === 'error') {
@@ -496,8 +544,9 @@ export function ChatPanel() {
       setIsStreaming(false)
     }
   }, [
-    input, isStreaming, addMessage, updateMessage, appendToMessage, addLiveStep,
+    input, isStreaming, addMessage, updateMessage, appendToMessage, appendToThinking, addLiveStep,
     setIsStreaming, setLastRunStats, activeConversationId, setActiveConversationId, imageData,
+    goalMode, activeSkills,
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -539,12 +588,13 @@ export function ChatPanel() {
     { icon: Network, text: 'استخرج الكيانات من: محمد يعمل على مشروع BMS باستخدام Arduino' },
     { icon: Calculator, text: 'احسب: 1250 * 0.15 + 200' },
     { icon: Globe, text: 'ابحث في الإنترنت عن آخر أخبار الذكاء الاصطناعي' },
-    { icon: BarChartIcon, text: 'ارسم bar chart لمبيعات 4 منتجات: لابتوب 1200، هاتف 850، تابلت 420، ساعة 310' },
+    { icon: BarChart3, text: 'ارسم bar chart لمبيعات 4 منتجات: لابتوب 1200، هاتف 850، تابلت 420، ساعة 310' },
   ]
 
   return (
     <div className="flex flex-col h-full">
       <ConversationsSidebar isOpen={conversationsOpen} onClose={() => setConversationsOpen(false)} />
+      <SkillsSelector isOpen={skillsOpen} onClose={() => setSkillsOpen(false)} />
 
       <div className="flex flex-col h-full">
         {/* Header */}
@@ -590,6 +640,37 @@ export function ChatPanel() {
             )}
           </div>
         </div>
+
+        {/* Active mode indicators */}
+        {(goalMode || activeSkills.length > 0) && (
+          <div className="px-4 py-2 border-b border-border bg-muted/30 flex items-center gap-2 flex-wrap">
+            {goalMode && (
+              <Badge variant="default" className="bg-cyan-600 hover:bg-cyan-700 text-[10px]">
+                <Target className="w-2.5 h-2.5 ml-1" />
+                Goal Mode
+                <button onClick={() => setGoalMode(false)} className="mr-1 hover:bg-cyan-700 rounded p-0.5">
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </Badge>
+            )}
+            {activeSkills.map(skill => (
+              <Badge key={skill} variant="default" className="bg-violet-600 hover:bg-violet-700 text-[10px]">
+                <Package className="w-2.5 h-2.5 ml-1" />
+                {skill}
+              </Badge>
+            ))}
+            {activeSkills.length > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 text-[10px] px-1"
+                onClick={clearSkills}
+              >
+                مسح الكل
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Messages */}
         <ScrollArea className="flex-1">
@@ -642,7 +723,7 @@ export function ChatPanel() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="اكتب رسالتك إلى MiMo..."
+                placeholder={goalMode ? 'اكتب هدفاً وسأفكّكه لمهام...' : 'اكتب رسالتك إلى MiMo...'}
                 disabled={isStreaming}
                 rows={1}
                 className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 min-h-[40px] max-h-[200px] text-sm"
@@ -654,6 +735,29 @@ export function ChatPanel() {
                 active={voiceMode}
                 onActiveChange={setVoiceMode}
               />
+              <Button
+                onClick={() => setSkillsOpen(true)}
+                size="icon"
+                variant="ghost"
+                className={cn('h-9 w-9 shrink-0', activeSkills.length > 0 && 'bg-violet-500/10 text-violet-500')}
+                title="المهارات"
+              >
+                <Package className="w-4 h-4" />
+                {activeSkills.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-violet-500 text-white text-[9px] flex items-center justify-center">
+                    {activeSkills.length}
+                  </span>
+                )}
+              </Button>
+              <Button
+                onClick={() => setGoalMode(!goalMode)}
+                size="icon"
+                variant="ghost"
+                className={cn('h-9 w-9 shrink-0', goalMode && 'bg-cyan-500/10 text-cyan-500')}
+                title="Goal Mode"
+              >
+                <Target className="w-4 h-4" />
+              </Button>
               <Button
                 onClick={send}
                 disabled={(!input.trim() && !imageData) || isStreaming}

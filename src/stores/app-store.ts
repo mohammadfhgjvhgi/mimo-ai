@@ -6,7 +6,7 @@ export type SectionId =
   | 'dashboard' | 'chat' | 'memory' | 'knowledge' | 'tasks'
   | 'tools' | 'schedule' | 'traces' | 'approvals' | 'settings'
   // Dev sections (mirror my own environment)
-  | 'sandbox' | 'preview' | 'devtools' | 'skills' | 'snapshot'
+  | 'dev-workspace' | 'sandbox' | 'preview' | 'devtools' | 'skills' | 'snapshot'
 
 interface AppState {
   // Navigation

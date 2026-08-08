@@ -8,19 +8,25 @@ export const maxDuration = 60
 
 /**
  * POST /api/chat
- * Body: { message, conversationId?, imageData? }
- * Returns: Server-Sent Events stream of agent steps + final answer
- *
- * If imageData is provided, the agent will use vision to analyze it
- * and prepend the analysis to the user's message context.
+ * Body: { message, conversationId?, imageData?, goalMode?, activeSkills? }
+ * Returns: Server-Sent Events stream with:
+ *   - conversation id
+ *   - thinking tokens (live)
+ *   - answer tokens (live)
+ *   - agent steps
+ *   - final done event with stats
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { message, conversationId, imageData } = body as {
+    const {
+      message, conversationId, imageData, goalMode, activeSkills,
+    } = body as {
       message: string
       conversationId?: string
       imageData?: string
+      goalMode?: boolean
+      activeSkills?: string[]
     }
 
     if (!message || typeof message !== 'string') {
@@ -29,7 +35,6 @@ export async function POST(req: NextRequest) {
 
     const user = await ensureDefaultUser()
 
-    // Get or create conversation
     let conv = conversationId
       ? await db.conversation.findUnique({ where: { id: conversationId } })
       : null
@@ -43,7 +48,6 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Set up SSE stream
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       async start(controller) {
@@ -55,7 +59,7 @@ export async function POST(req: NextRequest) {
         try {
           sendEvent('conversation', { id: conv!.id })
 
-          // If image provided, analyze it first
+          // Vision preprocessing (if image attached)
           let effectiveMessage = message
           if (imageData) {
             sendEvent('step', {
@@ -105,8 +109,11 @@ export async function POST(req: NextRequest) {
             userId: user.id,
             conversationId: conv!.id,
             userMessage: effectiveMessage,
+            goalMode,
+            activeSkills,
             onStep: (step) => sendEvent('step', step),
-            onToken: (token) => sendEvent('token', { token }),
+            onThinkingToken: (token) => sendEvent('thinking', { token }),
+            onAnswerToken: (token) => sendEvent('token', { token }),
           })
 
           sendEvent('done', {
@@ -114,6 +121,7 @@ export async function POST(req: NextRequest) {
             traceId: result.traceId,
             toolCallsCount: result.toolCallsCount,
             tokensUsed: result.tokensUsed,
+            thinkingTokens: result.thinkingTokens,
             totalDurationMs: result.totalDurationMs,
           })
         } catch (e) {

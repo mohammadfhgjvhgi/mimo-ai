@@ -18,6 +18,7 @@ import { PreviewPanel } from '@/components/mimo/panels/preview-panel'
 import { DevtoolsPanel } from '@/components/mimo/panels/devtools-panel'
 import { SnapshotPanel } from '@/components/mimo/panels/snapshot-panel'
 import { SkillsPanel } from '@/components/mimo/panels/skills-panel'
+import { DevWorkspacePanel } from '@/components/mimo/panels/dev-workspace-panel'
 import { useEffect } from 'react'
 
 export default function Home() {
@@ -25,7 +26,7 @@ export default function Home() {
 
   // Auto-redirect from dev sections to dashboard if dev mode is off
   useEffect(() => {
-    const devSections = ['sandbox', 'preview', 'devtools', 'snapshot', 'skills']
+    const devSections = ['dev-workspace', 'sandbox', 'preview', 'devtools', 'snapshot', 'skills']
     if (!devMode && devSections.includes(activeSection)) {
       useAppStore.getState().setActiveSection('dashboard')
     }
@@ -46,6 +47,7 @@ export default function Home() {
         {activeSection === 'approvals' && <ApprovalsPanel />}
         {activeSection === 'settings' && <SettingsPanel />}
         {/* Dev sections */}
+        {devMode && activeSection === 'dev-workspace' && <DevWorkspacePanel />}
         {devMode && activeSection === 'sandbox' && <SandboxPanel />}
         {devMode && activeSection === 'preview' && <PreviewPanel />}
         {devMode && activeSection === 'devtools' && <DevtoolsPanel />}
