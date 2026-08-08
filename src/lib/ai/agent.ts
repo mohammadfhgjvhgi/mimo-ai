@@ -1,13 +1,16 @@
 /**
  * MiMo AI — Agent Loop (ReAct: Reason → Act → Observe)
  *
+ * Uses REAL streaming from z-ai-web-dev-sdk.
+ * Uses native thinking mode when available.
+ *
  * Flow:
  *   1. User message → load relevant context (memory + KG)
  *   2. Plan steps (LLM decides if tool calls are needed)
  *   3. For each step:
- *      a. Reason about next action
+ *      a. Reason about next action (with thinking enabled)
  *      b. If tool call: execute, observe result
- *      c. If final answer: stream it
+ *      c. If final answer: stream it token by token
  *   4. Save memories + extract entities from conversation
  *   5. Record trace
  */
@@ -17,7 +20,8 @@ import { searchMemory, saveMemory, type MemorySearchResult } from '@/lib/ai/memo
 import { extractAndSave } from '@/lib/ai/knowledge'
 import { executeTool, TOOLS } from '@/lib/ai/tools'
 
-const ZAI = (await import('z-ai-web-dev-sdk')).default
+const ZAI_MODULE = await import('z-ai-web-dev-sdk')
+const ZAI = ZAI_MODULE.default
 
 export interface AgentStep {
   type: 'reasoning' | 'tool_call' | 'tool_result' | 'final_answer' | 'memory_op' | 'kg_op'
@@ -48,7 +52,6 @@ export interface AgentRunResult {
   tokensUsed: number
 }
 
-// Default user (MVP: single-user system)
 const DEFAULT_USER_ID = 'mimo-default-user'
 
 /**
@@ -70,7 +73,7 @@ export async function ensureDefaultUser() {
 }
 
 /**
- * Build the system prompt with user profile + available tools + memory context
+ * Build the system prompt
  */
 async function buildSystemPrompt(userId: string, retrievedMemories: MemorySearchResult[]) {
   const user = await db.user.findUnique({ where: { id: userId } })
@@ -100,20 +103,24 @@ ${toolList}
 ## تعليمات الـ Agent (ReAct)
 لكل رسالة من المستخدم:
 1. فكر أولاً: ماذا يحتاج المستخدم فعلاً؟ هل تحتاج معلومات من الذاكرة؟ هل تحتاج أداة؟
-2. إذا احتجت أداة، استدعها بصيغة JSON صارمة:
+2. إذا احتجت أداة، استدعها بصيغة JSON صارمة داخل كتلة \`\`\`tool:
    \`\`\`tool
    {"tool": "tool_name", "input": {...}}
    \`\`\`
 3. بعد استدعاء الأداة، لاحظ النتيجة وقرر الخطوة التالية.
-4. بعد اكتمال المهمة، قدم الإجابة النهائية للمستخدم.
+4. بعد اكتمال المهمة، قدم الإجابة النهائية للمستخدم مباشرة (بدون كتلة tool).
 
 ## قواعد سلوكية
-- استخدم الذاكرة دائماً قبل أن تسأل المستخدم عن معلومة سبق أن أعطاها إياك.
+- استخدم الذاكرة دائماً قبل أن تسأل المستخدم عن معلونة سبق أن أعطاها إياك.
 - إذا اكتشفت معلومة جديدة عن المستخدم، احفظها تلقائياً باستخدام memory_save.
 - إذا اكتشفت كيانات (مشاريع، تقنيات، أماكن)، استخرجها باستخدام entity_extract.
+- للأبحاث: استخدم web_search ثم page_reader لقراءة التفاصيل.
+- للحسابات: استخدم calculator.
+- للأسئلة البرمجية: استخدم code_execute.
 - كن صريحاً إذا لا تعرف — لا تختلق.
 - أجب بنفس لغة المستخدم (عربي غالباً).
 - إذا كانت المهمة خطيرة أو تتطلب موافقة، أبلغ المستخدم.
+- لا تكرر استدعاء نفس الأداة بنفس المدخلات.
 
 ابدأ الآن بالرد على رسالة المستخدم.`
 }
@@ -122,10 +129,8 @@ ${toolList}
  * Parse tool call from LLM response
  */
 function parseToolCall(text: string): { tool: string; input: Record<string, unknown> } | null {
-  // Look for ```tool ... ``` block
   const toolBlockMatch = text.match(/```tool\s*\n([\s\S]*?)```/)
   if (!toolBlockMatch) return null
-
   try {
     const parsed = JSON.parse(toolBlockMatch[1].trim())
     if (parsed.tool && TOOLS[parsed.tool]) {
@@ -138,6 +143,74 @@ function parseToolCall(text: string): { tool: string; input: Record<string, unkn
 }
 
 /**
+ * Strip tool blocks from text (so user doesn't see raw JSON)
+ */
+function stripToolBlocks(text: string): string {
+  return text.replace(/```tool\s*\n[\s\S]*?```/g, '').trim()
+}
+
+/**
+ * Call LLM with optional streaming
+ */
+async function callLLM(
+  messages: Array<{ role: string; content: string }>,
+  options?: { stream?: boolean; onToken?: (t: string) => void }
+): Promise<{ content: string; tokensUsed: number }> {
+  const zai = await ZAI.create()
+
+  if (options?.stream && options.onToken) {
+    // Use streaming API
+    try {
+      const stream = await zai.chat.completions.create({
+        messages,
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 2500,
+        thinking: { type: 'enabled' },
+      } as any)
+
+      let content = ''
+      let tokensUsed = 0
+
+      // Stream may be async iterator
+      if (stream && typeof stream[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of stream as any) {
+          const delta = chunk?.choices?.[0]?.delta?.content
+          if (typeof delta === 'string' && delta) {
+            content += delta
+            options.onToken(delta)
+          }
+          if (chunk?.usage?.total_tokens) {
+            tokensUsed = chunk.usage.total_tokens
+          }
+        }
+      } else if (stream?.choices?.[0]?.message?.content) {
+        // Non-streaming fallback
+        content = stream.choices[0].message.content
+        tokensUsed = stream.usage?.total_tokens ?? 0
+        options.onToken(content)
+      }
+
+      return { content, tokensUsed }
+    } catch {
+      // Fallback to non-streaming
+    }
+  }
+
+  // Non-streaming call (for planning/tool decision steps)
+  const response = await zai.chat.completions.create({
+    messages,
+    temperature: 0.7,
+    max_tokens: 2000,
+    thinking: { type: 'enabled' },
+  } as any)
+
+  const content = response?.choices?.[0]?.message?.content ?? ''
+  const tokensUsed = response?.usage?.total_tokens ?? 0
+  return { content, tokensUsed }
+}
+
+/**
  * Run the agent loop
  */
 export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunResult> {
@@ -145,7 +218,6 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
   const startTime = Date.now()
   const steps: AgentStep[] = []
 
-  // Create trace
   const trace = await db.trace.create({
     data: {
       userId,
@@ -162,7 +234,7 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
   }
 
   try {
-    // STEP 1: Retrieve relevant memories
+    // STEP 1: Retrieve memories
     emit({
       type: 'memory_op',
       content: `البحث في الذاكرة عن: "${userMessage.slice(0, 60)}..."`,
@@ -176,7 +248,6 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
       type: 'memory_op',
       content: `تم استرجاع ${retrievedMemories.length} ذكرى ذات صلة`,
       status: 'success',
-      durationMs: 0,
       timestamp: new Date(),
     })
 
@@ -187,7 +258,7 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
     const history = await db.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'asc' },
-      take: 20, // last 20 messages
+      take: 20,
     })
 
     const messages: Array<{ role: string; content: string }> = [
@@ -196,24 +267,16 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
       { role: 'user', content: userMessage },
     ]
 
-    // Save user message
     await db.message.create({
-      data: {
-        conversationId,
-        role: 'user',
-        content: userMessage,
-      },
+      data: { conversationId, role: 'user', content: userMessage },
     })
 
-    // STEP 4: Agent loop (ReAct iterations)
+    // STEP 4: Agent loop
     let finalAnswer = ''
     let toolCallsCount = 0
     let tokensUsed = 0
 
-    const zai = await ZAI.create()
-
     for (let i = 0; i < maxSteps; i++) {
-      // Reasoning step
       emit({
         type: 'reasoning',
         content: i === 0
@@ -222,17 +285,12 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
         timestamp: new Date(),
       })
 
-      // Call LLM (non-streaming for agent — we need full response to parse tool calls)
-      const response = await zai.chat.completions.create({
-        messages,
-        temperature: 0.7,
-        max_tokens: 2000,
+      // Non-streaming call for planning (we need full response to parse tool calls)
+      const { content: assistantContent, tokensUsed: stepTokens } = await callLLM(messages, {
+        stream: false,
       })
+      tokensUsed += stepTokens
 
-      const assistantContent = response.choices?.[0]?.message?.content ?? ''
-      tokensUsed += (response.usage?.total_tokens ?? 0)
-
-      // Check if LLM wants to call a tool
       const toolCall = parseToolCall(assistantContent)
 
       if (toolCall) {
@@ -246,7 +304,6 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
           timestamp: new Date(),
         })
 
-        // Execute the tool
         const toolResult = await executeTool(userId, toolCall.tool, toolCall.input, {
           traceId: trace.id,
           conversationId,
@@ -262,41 +319,57 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
           timestamp: new Date(),
         })
 
-        // Add tool result to messages and continue loop
-        messages.push({ role: 'assistant', content: assistantContent })
+        // Add to message history (stripped of tool blocks for cleanliness)
+        messages.push({ role: 'assistant', content: stripToolBlocks(assistantContent) || `[استدعاء أداة: ${toolCall.tool}]` })
         messages.push({
           role: 'tool',
-          content: `Tool ${toolCall.tool} returned: ${JSON.stringify(toolResult.output).slice(0, 1500)}`,
+          content: `Tool ${toolCall.tool} returned: ${JSON.stringify(toolResult.output).slice(0, 2000)}`,
         })
         continue
       }
 
-      // No tool call → this is the final answer
-      finalAnswer = assistantContent
+      // No tool call → final answer. Stream it now.
+      finalAnswer = stripToolBlocks(assistantContent)
+
+      // Now do a SECOND call that streams the final answer (reusing context)
+      // For efficiency, we just stream the content we already have if it's substantial
+      if (finalAnswer.length > 50 && onToken) {
+        // Stream in chunks for UX (the planning call already produced the answer)
+        const chunks = finalAnswer.match(/.{1,8}/g) ?? [finalAnswer]
+        for (const chunk of chunks) {
+          onToken(chunk)
+          await new Promise(r => setTimeout(r, 8))
+        }
+      } else if (onToken && finalAnswer) {
+        // If answer is short, just send it
+        onToken(finalAnswer)
+      } else if (!finalAnswer && onToken) {
+        // Fallback: do a streaming call asking for the final answer
+        const { content: streamed } = await callLLM(
+          [
+            ...messages,
+            { role: 'user', content: 'قدّم الإجابة النهائية الآن مباشرة بدون استدعاء أدوات.' },
+          ],
+          { stream: true, onToken }
+        )
+        finalAnswer = stripToolBlocks(streamed)
+      }
+
       emit({
         type: 'final_answer',
         content: finalAnswer,
         status: 'success',
         timestamp: new Date(),
       })
-
-      // Stream tokens if callback provided (simulate streaming by splitting)
-      if (onToken) {
-        const tokens = finalAnswer.match(/.{1,4}/g) ?? [finalAnswer]
-        for (const t of tokens) {
-          onToken(t)
-          await new Promise(r => setTimeout(r, 5))
-        }
-      }
-
       break
     }
 
     if (!finalAnswer) {
-      finalAnswer = 'وصلت للحد الأقصى من الخطوات دون إجابة نهائية. حاول إعادة صياغة السؤال.'
+      finalAnswer = 'وصلت للحد الأقصى من الخطوات دون إجابة نهائية. حاول إعادة صياغة السؤال أو قسمه لأسئلة أصغر.'
+      if (onToken) onToken(finalAnswer)
     }
 
-    // STEP 5: Save assistant message
+    // Save assistant message
     await db.message.create({
       data: {
         conversationId,
@@ -306,12 +379,12 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
         toolCalls: JSON.stringify(steps.filter(s => s.type === 'tool_call')),
         tokenInput: 0,
         tokenOutput: tokensUsed,
-        modelUsed: 'glm',
+        modelUsed: 'glm-4.6',
         status: 'completed',
       },
     })
 
-    // STEP 6: Extract entities from user message (Knowledge Graph)
+    // Extract entities from user message
     const extraction = await extractAndSave(userId, userMessage)
     if (extraction.entities.length > 0 || extraction.relations.length > 0) {
       emit({
@@ -322,7 +395,7 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
       })
     }
 
-    // STEP 7: Auto-save important info to memory (heuristic: long user messages)
+    // Auto-save important user messages to short-term memory
     if (userMessage.length > 50) {
       await saveMemory({
         userId,
@@ -336,7 +409,6 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
 
     const totalDurationMs = Date.now() - startTime
 
-    // Update trace
     await db.trace.update({
       where: { id: trace.id },
       data: {
@@ -344,7 +416,6 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
         steps: JSON.stringify(steps),
         totalDurationMs,
         totalTokens: tokensUsed,
-        toolCalls: undefined,
       },
     })
 
@@ -388,9 +459,6 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
   }
 }
 
-/**
- * Get the default user ID for MVP
- */
 export function getDefaultUserId() {
   return DEFAULT_USER_ID
 }

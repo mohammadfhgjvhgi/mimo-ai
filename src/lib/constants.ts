@@ -213,6 +213,33 @@ export const TOOL_REGISTRY = [
     requiresApproval: false,
     description: 'تلخيص نص أو محادثة سابقة',
   },
+  {
+    name: 'chart_generate',
+    ar: 'توليد رسم',
+    en: 'Generate Chart',
+    icon: 'BarChart3',
+    category: 'utility',
+    requiresApproval: false,
+    description: 'توليد رسم بياني (bar/line/pie/scatter) كصورة PNG',
+  },
+  {
+    name: 'page_reader',
+    ar: 'قارئ الصفحات',
+    en: 'Page Reader',
+    icon: 'FileSearch',
+    category: 'research',
+    requiresApproval: false,
+    description: 'قراءة محتوى صفحة ويب واستخراج النص',
+  },
+  {
+    name: 'file_list',
+    ar: 'عرض الملفات',
+    en: 'List Files',
+    icon: 'FolderOpen',
+    category: 'filesystem',
+    requiresApproval: false,
+    description: 'عرض قائمة الملفات في مساحة العمل',
+  },
 ] as const
 
 export const APP_SECTIONS = [

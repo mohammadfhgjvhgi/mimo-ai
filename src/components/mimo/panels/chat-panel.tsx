@@ -9,12 +9,17 @@ import {
   Send, Brain, Wrench, Activity, Lightbulb, Database,
   Network, CheckCircle2, XCircle, Loader2, RotateCw,
   Clock, Zap, Sparkles, ChevronDown, ChevronRight,
+  MessageSquare, Mic, Square, Image as ImageIcon,
+  Volume2, Download, FileText,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { ConversationsSidebar } from '@/components/mimo/conversations-sidebar'
+import { VoiceInput } from '@/components/mimo/voice-input'
+import { ImageUpload } from '@/components/mimo/image-upload'
 
 const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   reasoning: Lightbulb,
@@ -105,11 +110,37 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                       )}
 
                       {/* Tool result */}
-                      {step.toolResult !== undefined && (
+                      {step.toolResult !== undefined && step.toolResult !== null && (
+                        <>
+                          {/* Render chart image if present */}
+                          {typeof step.toolResult === 'object' &&
+                            !Array.isArray(step.toolResult) &&
+                            'imageDataUrl' in (step.toolResult as Record<string, unknown>) && (
+                            <div className="mt-2">
+                              <img
+                                src={String((step.toolResult as Record<string, unknown>).imageDataUrl)}
+                                alt={String((step.toolResult as Record<string, unknown>).title ?? 'chart')}
+                                className="w-full max-w-md rounded-md border border-border"
+                              />
+                            </div>
+                          )}
+                          <pre className="mt-1 text-[10px] font-mono bg-muted/70 p-1.5 rounded overflow-x-auto max-h-40">
+                            {typeof step.toolResult === 'string'
+                              ? step.toolResult
+                              : JSON.stringify(
+                                (typeof step.toolResult === 'object' && step.toolResult !== null && 'imageDataUrl' in (step.toolResult as Record<string, unknown>))
+                                  ? { ...(step.toolResult as Record<string, unknown>), imageDataUrl: '[صورة]' }
+                                  : step.toolResult,
+                                null, 2
+                              )}
+                          </pre>
+                        </>
+                      )}
+
+                      {/* Handle null/undefined result separately */}
+                      {(step.toolResult === undefined || step.toolResult === null) && (
                         <pre className="mt-1 text-[10px] font-mono bg-muted/70 p-1.5 rounded overflow-x-auto max-h-40">
-                          {typeof step.toolResult === 'string'
-                            ? step.toolResult
-                            : JSON.stringify(step.toolResult, null, 2)}
+                          {step.toolResult === undefined ? 'undefined' : 'null'}
                         </pre>
                       )}
                     </div>
@@ -133,16 +164,59 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           )}
         </div>
 
-        {/* Status footer */}
+        {/* Status footer with TTS for assistant messages */}
         {!isUser && message.status === 'completed' && (
           <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
             <Sparkles className="w-3 h-3" />
             <span>MiMo AI</span>
+            <button
+              onClick={() => playTTS(message.content)}
+              className="ml-2 hover:text-primary transition-colors"
+              title="تشغيل صوتياً"
+            >
+              <Volume2 className="w-3 h-3" />
+            </button>
           </div>
         )}
       </div>
     </div>
   )
+}
+
+// TTS playback helper
+let currentAudio: HTMLAudioElement | null = null
+function playTTS(text: string) {
+  // Stop currently playing audio
+  if (currentAudio) {
+    currentAudio.pause()
+    currentAudio = null
+  }
+
+  // Truncate to TTS limit (1024 chars)
+  const truncated = text.slice(0, 1000)
+
+  toast.info('جاري توليد الصوت...')
+
+  fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: truncated }),
+  })
+    .then(r => {
+      if (!r.ok) throw new Error('فشل TTS')
+      return r.blob()
+    })
+    .then(blob => {
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      currentAudio = audio
+      audio.onended = () => {
+        URL.revokeObjectURL(url)
+        currentAudio = null
+      }
+      audio.play().catch(() => toast.error('فشل تشغيل الصوت'))
+    })
+    .catch(e => toast.error((e as Error).message))
 }
 
 export function ChatPanel() {
@@ -152,6 +226,9 @@ export function ChatPanel() {
   } = useChatStore()
   const { activeConversationId, setActiveConversationId } = useAppStore()
   const [input, setInput] = useState('')
+  const [conversationsOpen, setConversationsOpen] = useState(false)
+  const [voiceMode, setVoiceMode] = useState(false)
+  const [imageData, setImageData] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -175,6 +252,7 @@ export function ChatPanel() {
     if (!trimmed || isStreaming) return
 
     setInput('')
+    setImageData(null)
     setIsStreaming(true)
 
     // Add user message immediately
@@ -206,6 +284,7 @@ export function ChatPanel() {
         body: JSON.stringify({
           message: trimmed,
           conversationId: activeConversationId,
+          imageData: imageData, // send image if provided
         }),
       })
 
@@ -279,13 +358,37 @@ export function ChatPanel() {
     }
   }, [
     input, isStreaming, addMessage, updateMessage, appendToMessage, addLiveStep,
-    setIsStreaming, setLastRunStats, activeConversationId, setActiveConversationId,
+    setIsStreaming, setLastRunStats, activeConversationId, setActiveConversationId, imageData,
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       send()
+    }
+  }
+
+  const exportConversation = async () => {
+    if (!activeConversationId) {
+      toast.error('لا توجد محادثة نشطة للتصدير')
+      return
+    }
+    toast.info('جاري توليد PDF...')
+    try {
+      const res = await fetch(`/api/export?conversationId=${activeConversationId}`)
+      if (!res.ok) throw new Error('فشل التصدير')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `mimo-conversation-${new Date().toISOString().slice(0, 10)}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('تم تصدير المحادثة')
+    } catch (e) {
+      toast.error((e as Error).message)
     }
   }
 
@@ -300,9 +403,21 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col h-full">
+      <ConversationsSidebar isOpen={conversationsOpen} onClose={() => setConversationsOpen(false)} />
+
+      <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-14 border-b border-border bg-card/50 backdrop-blur">
         <div className="flex items-center gap-2">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            onClick={() => setConversationsOpen(true)}
+            title="المحادثات السابقة"
+          >
+            <MessageSquare className="w-4 h-4" />
+          </Button>
           <div className="w-8 h-8 rounded-lg mimo-gradient flex items-center justify-center">
             <Brain className="w-4 h-4 text-white" />
           </div>
@@ -314,6 +429,18 @@ export function ChatPanel() {
           </div>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {messages.length > 0 && !isStreaming && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 text-xs"
+              onClick={exportConversation}
+              title="تصدير المحادثة كـ PDF"
+            >
+              <FileText className="w-3.5 h-3.5 ml-1" />
+              <span className="hidden sm:inline">تصدير PDF</span>
+            </Button>
+          )}
           {isStreaming && (
             <>
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -373,15 +500,36 @@ export function ChatPanel() {
               rows={1}
               className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 min-h-[40px] max-h-[200px]"
             />
+            <ImageUpload onImageSelect={setImageData} disabled={isStreaming} />
+            <VoiceInput
+              onTranscript={(text) => setInput(prev => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)}
+              disabled={isStreaming}
+              active={voiceMode}
+              onActiveChange={setVoiceMode}
+            />
             <Button
               onClick={send}
-              disabled={!input.trim() || isStreaming}
+              disabled={(!input.trim() && !imageData) || isStreaming}
               size="icon"
               className="shrink-0 h-9 w-9 rounded-lg"
             >
               {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>
           </div>
+          {imageData && (
+            <div className="mt-2 flex items-center gap-2 p-1.5 rounded-md bg-muted/50">
+              <img src={imageData} alt="مرفق" className="w-10 h-10 rounded object-cover" />
+              <span className="text-xs text-muted-foreground">صورة مرفقة</span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6 mr-auto"
+                onClick={() => setImageData(null)}
+              >
+                ×
+              </Button>
+            </div>
+          )}
           <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
@@ -391,10 +539,11 @@ export function ChatPanel() {
             </div>
             <div className="flex items-center gap-1">
               <Zap className="w-3 h-3" />
-              <span>GLM</span>
+              <span>GLM-4.6 + Thinking</span>
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

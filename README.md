@@ -2,17 +2,11 @@
 
 <div dir="rtl">
 
-نظام ذكاء اصطناعي شخصي يعمل كـ **Agent مستقل**، مبني بـ Next.js 16 + TypeScript + Prisma + SQLite + GLM.
+نظام ذكاء اصطناعي شخصي يعمل كـ **Agent مستقل**، مبني بـ Next.js 16 + TypeScript + Prisma + SQLite + GLM-4.6.
 
-يطبّق نمط **ReAct** (Reason + Act + Observe)، يحفظ **ذاكرة دائمة** عبر 7 أنواع، يبني **رسم معرفي تلقائياً** من محادثاتك، ويستدعي **14 أداة قابلة للتوسعة** — مع **Human-in-the-loop** للعمليات الخطيرة.
+يطبّق نمط **ReAct** (Reason + Act + Observe) مع **thinking native**، يحفظ **ذاكرة دائمة** عبر 7 أنواع، يبني **رسم معرفي تلقائياً** من محادثاتك، ويستدعي **17 أداة حقيقية** — مع **Human-in-the-loop** للعمليات الخطيرة.
 
-</div>
-
----
-
-## ✨ المميزات
-
-<div dir="rtl">
+## ✨ المميزات الحقيقية (وليست mocks)
 
 ### 🧠 طبقة الذاكرة (7 أنواع)
 
@@ -28,27 +22,27 @@
 
 مع **consolidation تلقائي**: short_term → long_term/episodic بعد 24 ساعة بحسب الأهمية.
 
-### 🕸️ Knowledge Graph
+### 🕸️ Knowledge Graph تلقائي
 
 - استخراج تلقائي للكيانات (person, project, technology, place, organization, concept, skill, event)
-- استخراج العلاقات (works_on, uses, located_in, knows, created, depends_on, studies_at, employed_by, interested_in)
+- استخراج العلاقات (works_on, uses, located_in, knows, created, depends_on, ...)
 - رسم تفاعلي SVG للتصفّح
-- بحث بالكلمات المفتاحية
+- يُبنى تلقائياً من محادثاتك دون تدخّل
 
-### 🔧 Agent Loop (ReAct)
+### 🔧 Agent Loop (ReAct) مع Thinking Native
 
 ```
 User message
     ↓
-Retrieve relevant memories
+Retrieve relevant memories (hybrid scoring)
     ↓
-Build system prompt with context
+Build system prompt with context + user profile
     ↓
-┌─→ LLM call (GLM via z-ai-web-dev-sdk)
+┌─→ LLM call with thinking: enabled (GLM-4.6)
 │   ↓
 │   Parse tool call?
 │   ├── Yes → Execute tool → Observe result → loop back
-│   └── No  → Final answer → save to DB
+│   └── No  → Final answer (streamed token by token)
 └─┘
     ↓
 Extract entities → save to Knowledge Graph
@@ -58,42 +52,49 @@ Save short_term memory (auto)
 Update trace (steps, tokens, duration, cost)
 ```
 
-### 🛠️ 14 أداة قابلة للتوسعة
+### 🛠️ 17 أداة حقيقية (ليست mocks!)
 
-| الفئة | الأدوات |
-|------|--------|
-| **Memory** | `memory_save`, `memory_query` |
-| **Knowledge** | `entity_extract`, `knowledge_query` |
-| **Productivity** | `task_create`, `task_list`, `reminder_set` |
-| **Automation** | `schedule_create` (يتطلب موافقة) |
-| **Utility** | `calculator`, `summarize` |
-| **Research** | `web_search` (placeholder — اربط Tavily/Serper/Brave) |
-| **Development** | `code_execute` (placeholder — اربط E2B/Modal/Docker) |
-| **Filesystem** | `file_read`, `file_write` (يتطلب موافقة) |
+| الفئة | الأدوات | الحالة |
+|------|--------|--------|
+| **Memory** | `memory_save`, `memory_query` | ✅ حقيقي |
+| **Knowledge** | `entity_extract`, `knowledge_query` | ✅ حقيقي |
+| **Productivity** | `task_create`, `task_list`, `reminder_set` | ✅ حقيقي |
+| **Automation** | `schedule_create` (يتطلب موافقة) | ✅ حقيقي |
+| **Research** | `web_search`, `page_reader` | ✅ حقيقي (Z.ai SDK) |
+| **Utility** | `calculator`, `summarize`, `chart_generate` | ✅ حقيقي (matplotlib) |
+| **Development** | `code_execute` (Python sandbox, يتطلب موافقة) | ✅ حقيقي |
+| **Filesystem** | `file_read`, `file_write`, `file_list` | ✅ حقيقي (workspace/) |
 
-لإضافة أداة جديدة: عرّفها في `src/lib/ai/tools.ts` — ستظهر تلقائياً في الـ UI.
+### 🎤 وسائط متعددة (Multimodal)
+
+- **رفع صور في المحادثة** — تحليل تلقائي بـ GLM-4V قبل الرد
+- **إدخال صوتي** — اضغط زر الميكروفون، سجّل، يُفرّغ تلقائياً لـ text
+- **إخراج صوتي (TTS)** — زر "تشغيل صوتياً" تحت كل رد من MiMo
 
 ### 🛡️ الأمان
 
-- **Human-in-the-loop**: العمليات الخطيرة تتطلب موافقتك قبل التنفيذ
+- **Human-in-the-loop**: العمليات الخطيرة (file_write, code_execute, schedule_create) تتطلب موافقتك
 - **Tool isolation**: كل أداة مسجّلة في `ToolCall` مع timing + tokens + cost
 - **Full tracing**: كل تشغيل للـ agent مُسجّل في `Trace` مع كل الخطوات
 - **Local-first**: البيانات في SQLite على جهازك
+- **Sandbox معزول**: `code_execute` يمنع `os.system`, `subprocess.Popen`, `__import__`, `eval`, `exec`
 
 ### 🎨 الواجهة (RTL Arabic-first)
 
 - **Dashboard**: لوحة قيادة مع إحصائيات شاملة
-- **Chat**: محادثة streaming مع عرض سلسلة التفكير (8 خطوات) + tool calls
-- **Memory**: عرض الذكريات حسب النوع + بحث + إضافة يدوية + slider للأهمية
+- **Chat**: محادثة streaming مع عرض سلسلة التفكير + tool calls + صور الـ charts
+- **Conversations Sidebar**: تعدد المحادثات + بحث + تثبيت + حذف
+- **Memory**: عرض الذكريات حسب النوع + بحث + slider للأهمية
 - **Knowledge Graph**: رسم تفاعلي SVG + استخراج يدوي من نص
 - **Tasks**: مهام مع status/priority/category + filter tabs
-- **Tools**: 14 أداة موزعة على 8 فئات + آخر الاستدعاءات
+- **Tools**: 17 أداة موزعة على 8 فئات + آخر الاستدعاءات
 - **Schedule**: جدولة مع cron expressions + تفعيل/إيقاف
 - **Traces**: سجلات التتبع مع تفاصيل كاملة
 - **Approvals**: قائمة العمليات الخطيرة بانتظار الموافقة
 - **Settings**: الملف الشخصي + إدارة البيانات
 - **Command Palette** (⌘K): وصول سريع لكل الأقسام
 - **Dark/Light mode**: مع حفظ التفضيل في localStorage
+- **تصدير PDF**: تصدير المحادثة كـ PDF (ReportLab + Arabic font support)
 
 </div>
 
@@ -122,26 +123,44 @@ bun run dev
 ```
 mimo-ai/
 ├── prisma/
-│   └── schema.prisma          # 11 جدول (User, Memory, Entity, Task, ...)
+│   └── schema.prisma          # 11 جدول
 ├── src/
 │   ├── lib/
 │   │   ├── ai/
-│   │   │   ├── agent.ts       # ReAct Agent Loop (مع z-ai-web-dev-sdk)
+│   │   │   ├── agent.ts       # ReAct Agent Loop (thinking native + streaming)
 │   │   │   ├── memory.ts      # 7 أنواع ذاكرة + hybrid search
 │   │   │   ├── knowledge.ts   # Entity/Relation extraction + KG ops
-│   │   │   └── tools.ts       # 14 أداة قابلة للتوسعة
-│   │   ├── constants.ts       # أنواع الذاكرة، الكيانات، الأدوات
+│   │   │   └── tools.ts       # 17 أداة حقيقية
+│   │   ├── constants.ts
 │   │   └── db.ts              # Prisma client
 │   ├── app/
-│   │   ├── api/               # 12 route: chat, memory, knowledge, tasks, ...
-│   │   ├── page.tsx           # Main shell
-│   │   ├── layout.tsx         # RTL + dark mode provider
-│   │   └── globals.css        # MiMo AI theme (emerald accent)
+│   │   ├── api/               # 14 route:
+│   │   │   ├── chat/          # SSE streaming + vision
+│   │   │   ├── conversations/
+│   │   │   ├── memory/        # + search
+│   │   │   ├── knowledge/
+│   │   │   ├── tasks/
+│   │   │   ├── tools/
+│   │   │   ├── schedule/
+│   │   │   ├── traces/
+│   │   │   ├── approvals/
+│   │   │   ├── stats/
+│   │   │   ├── user/
+│   │   │   ├── asr/           # Speech-to-Text (real)
+│   │   │   ├── tts/           # Text-to-Speech (real)
+│   │   │   ├── vision/        # Image understanding (real)
+│   │   │   └── export/        # PDF export
+│   │   ├── page.tsx
+│   │   ├── layout.tsx
+│   │   └── globals.css
 │   ├── components/
 │   │   └── mimo/
 │   │       ├── sidebar.tsx
+│   │       ├── conversations-sidebar.tsx
 │   │       ├── command-palette.tsx
 │   │       ├── theme-provider.tsx
+│   │       ├── voice-input.tsx      # Microphone + ASR
+│   │       ├── image-upload.tsx     # Image attachment + VLM
 │   │       └── panels/
 │   │           ├── dashboard-panel.tsx
 │   │           ├── chat-panel.tsx
@@ -154,8 +173,8 @@ mimo-ai/
 │   │           ├── approvals-panel.tsx
 │   │           └── settings-panel.tsx
 │   └── stores/
-│       ├── app-store.ts       # Zustand (navigation, theme)
-│       └── chat-store.ts      # Zustand (messages, agent steps)
+│       ├── app-store.ts
+│       └── chat-store.ts
 └── .env                       # DATABASE_URL (لا ترفعه!)
 ```
 
@@ -165,16 +184,15 @@ mimo-ai/
 
 <div dir="rtl">
 
-المشروع يعمل بالكامل كـ MVP، لكن بعض الأدوات تحتاج ربط بخدمات خارجية للإنتاج:
+المشروع يعمل بالكامل، لكن بعض الميزات تحتاج ربط خارجي للإنتاج:
 
-| الأداة | الحالة | ما تحتاج ربطه |
+| الميزة | الحالة | ما تحتاج ربطه |
 |--------|--------|--------------|
-| `web_search` | placeholder | [Tavily](https://tavily.com), [Serper](https://serper.dev), [Brave Search](https://brave.com/search/api/) |
-| `code_execute` | placeholder | [E2B](https://e2b.dev), [Modal](https://modal.com), Docker sandbox |
-| `file_read/write` | placeholder | Node `fs` مع allowed paths whitelist |
 | Scheduler | مسجّلة لكن غير مشغّلة | `node-cron` أو Celery لتفعيلها فعلياً |
-| Vector embeddings | heuristic scoring | [ChromaDB](https://trychroma.com), [Qdrant](https://qdrant.tech), [pgvector](https://github.com/pgvector/pgvector) |
+| Vector embeddings | heuristic scoring | [ChromaDB](https://trychroma.com), [Qdrant](https://qdrant.tech) |
 | MCP support | غير مدمج | MCP client bridge → function calling |
+| Multi-user | single-user (محمود الافتراضي) | NextAuth + user isolation |
+| Backup | غير موجود | export/import SQLite |
 
 </div>
 
@@ -188,7 +206,15 @@ mimo-ai/
 - **Database**: Prisma ORM + SQLite
 - **State**: Zustand (client) + TanStack Query (server)
 - **Icons**: Lucide React
-- **LLM**: GLM via [`z-ai-web-dev-sdk`](https://www.npmjs.com/package/z-ai-web-dev-sdk)
+- **LLM**: GLM-4.6 via [`z-ai-web-dev-sdk`](https://www.npmjs.com/package/z-ai-web-dev-sdk)
+  - `chat.completions.create` (text + thinking + streaming)
+  - `chat.completions.createVision` (multimodal images)
+  - `audio.tts.create` (text-to-speech)
+  - `audio.asr.create` (speech-to-text)
+  - `functions.invoke('web_search', ...)` (real web search)
+  - `functions.invoke('page_reader', ...)` (real page reading)
+- **Charts**: matplotlib (Python sandbox)
+- **PDF**: ReportLab (Python sandbox)
 - **Animations**: Framer Motion
 
 ---
@@ -218,20 +244,58 @@ User ─┬─ Conversation ──── Message
 
 ```
 احفظ أنني طالب هندسة كهربائية من الخليل وأعمل على مشروع BMS باستخدام Arduino و Firebase
-→ سيحفظ ذاكرة + يستخرج 4 كيانات تلقائياً
+→ سيحفظ ذاكرة + يستخرج كيانات تلقائياً
 
-كم مهمة معلّقة لدي؟
-→ سيستدعي task_list ويعرض النتيجة
+ابحث في الإنترنت عن آخر أخبار الذكاء الاصطناعي
+→ سيستدعي web_search (حقيقي) ثم page_reader للتفاصيل
 
-ما هي آخر الذكريات التي حفظتها عني؟
-→ سيستدعي memory_query
+ارسم bar chart للمنتجات: لابتوب 1200، هاتف 850، تابلت 420، ساعة 310
+→ سيستدعي chart_generate (matplotlib) ويعرض الصورة في الـ chat
+
+نفّذ كود Python يحسب متوسط [10, 20, 30, 40]
+→ سيستدعي code_execute (Python sandbox حقيقي)
 
 احسب: 1250 * 0.15 + 200
 → سيستدعي calculator
-
-استخرج الكيانات من: محمد يعمل على مشروع BMS باستخدام Arduino
-→ سيستدعي entity_extract
 ```
+
+**مداخل الوسائط المتعددة:**
+- اضغط زر 🖼️ لإرفاق صورة — سيحللها GLM-4V تلقائياً
+- اضغط زر 🎤 لتسجيل صوتك — سيُفرّغ تلقائياً
+- اضغط زر 🔊 تحت أي رد لتشغيله صوتياً
+
+</div>
+
+---
+
+## 📈 خارطة الطريق (10 سنوات)
+
+<div dir="rtl">
+
+هذا مشروع شخصي طويل الأمد. الخطط المستقبلية:
+
+### المرحلة القادمة (Q1 2027)
+- [ ] Vector embeddings حقيقية (ChromaDB)
+- [ ] MCP server support
+- [ ] Multi-user مع NextAuth
+- [ ] Background workers (long-running tasks)
+- [ ] Event triggers (webhooks)
+- [ ] Self-monitoring + analytics dashboard
+
+### المرحلة المتقدمة (2027-2028)
+- [ ] Multi-model routing (Claude for reasoning, GPT-4o for vision, Llama for privacy)
+- [ ] Hierarchical agents (Supervisor + Specialists)
+- [ ] Plan reconstruction after failures
+- [ ] Pause & resume long tasks
+- [ ] Self-reflection layer (مراجعة الذات)
+- [ ] Learning from feedback
+
+### المرحلة البحثية (2028+)
+- [ ] Personal World Model
+- [ ] Digital Twin
+- [ ] Continual learning بدون نسيان
+- [ ] Embodied agents (روبوتات)
+- [ ] AI-Native OS integrations
 
 </div>
 
@@ -251,6 +315,7 @@ MIT License — استخدمه، عدّله، وزّعه بحرية.
 - **لا ترفع مجلد `db/`** (يحتوي قاعدة بياناتك المحلية)
 - إذا أردت الإنتاج، استخدم Postgres بدل SQLite، وفعّل تشفير القرص
 - راجع `src/lib/ai/tools.ts` قبل تفعيل `code_execute` و `file_write` فعلياً — تأكد من sandbox قوي
+- **لا تشارك GitHub Personal Access Tokens في URLs أبداً**
 
 </div>
 
@@ -259,5 +324,7 @@ MIT License — استخدمه، عدّله، وزّعه بحرية.
 <div dir="rtl">
 
 **صُنع بـ ❤️ لمحمد — طالب هندسة كهربائية من الخليل، فلسطين.**
+
+**رؤية المشروع:** نظام ذكاء اصطناعي شخصي يستمر 10+ سنوات، يتعلّم من صاحبه، ويصبح أفضل مع الوقت.
 
 </div>

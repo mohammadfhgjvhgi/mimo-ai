@@ -7,6 +7,7 @@ import {
   Wrench, Globe, Save, Search, CheckSquare, List, Network,
   Share2, CalendarClock, Calculator, Terminal, FileText,
   FilePlus, Bell, Shield, Clock, Cpu, Database,
+  BarChart3, FileSearch, FolderOpen,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Globe, Save, Search, CheckSquare, List, Network, Share2,
   CalendarClock, Calculator, Terminal, FileText, FilePlus, Bell,
+  BarChart3, FileSearch, FolderOpen,
 }
 
 interface ToolCall {
