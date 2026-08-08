@@ -5,8 +5,6 @@ import { create } from 'zustand'
 export type SectionId =
   | 'dashboard' | 'chat' | 'memory' | 'knowledge' | 'tasks'
   | 'tools' | 'schedule' | 'traces' | 'approvals' | 'settings'
-  // Dev sections (mirror my own environment)
-  | 'dev-workspace' | 'sandbox' | 'preview' | 'devtools' | 'skills' | 'snapshot'
 
 interface AppState {
   // Navigation
@@ -30,19 +28,10 @@ interface AppState {
   theme: 'light' | 'dark'
   toggleTheme: () => void
   setTheme: (t: 'light' | 'dark') => void
-
-  // Dev mode (continuous development)
-  devMode: boolean
-  toggleDevMode: () => void
-  setDevMode: (v: boolean) => void
-
-  // Dev layout: side-by-side or tabbed
-  devLayout: 'tabbed' | 'split'
-  setDevLayout: (l: 'tabbed' | 'split') => void
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
-  activeSection: 'dashboard',
+export const useAppStore = create<AppState>((set) => ({
+  activeSection: 'chat',
   setActiveSection: (s) => set({ activeSection: s }),
 
   activeConversationId: null,
@@ -58,11 +47,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   theme: 'dark',
   toggleTheme: () => set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
   setTheme: (t) => set({ theme: t }),
-
-  devMode: false,
-  toggleDevMode: () => set((s) => ({ devMode: !s.devMode })),
-  setDevMode: (v) => set({ devMode: v }),
-
-  devLayout: 'tabbed',
-  setDevLayout: (l) => set({ devLayout: l }),
 }))

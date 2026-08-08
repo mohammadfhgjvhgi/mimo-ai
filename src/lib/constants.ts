@@ -243,7 +243,6 @@ export const TOOL_REGISTRY = [
 ] as const
 
 export const APP_SECTIONS = [
-  { id: 'dashboard',   ar: 'لوحة القيادة',     en: 'Dashboard',    icon: 'LayoutDashboard' },
   { id: 'chat',        ar: 'المحادثة',         en: 'Chat',         icon: 'MessageSquare' },
   { id: 'memory',      ar: 'الذاكرة',          en: 'Memory',       icon: 'Brain' },
   { id: 'knowledge',   ar: 'الرسم المعرفي',    en: 'Knowledge',    icon: 'Share2' },
@@ -255,14 +254,4 @@ export const APP_SECTIONS = [
   { id: 'settings',    ar: 'الإعدادات',        en: 'Settings',     icon: 'Settings' },
 ] as const
 
-// Dev sections (visible only when devMode is on)
-export const DEV_SECTIONS = [
-  { id: 'dev-workspace',  ar: 'مساحة التطوير',  en: 'Dev Workspace',  icon: 'Code2' },
-  { id: 'sandbox',        ar: 'الـ Sandbox',     en: 'Sandbox',        icon: 'Terminal' },
-  { id: 'preview',        ar: 'المعاينة',       en: 'Preview',        icon: 'Eye' },
-  { id: 'devtools',       ar: 'أدوات التطوير',  en: 'DevTools',       icon: 'TerminalSquare' },
-  { id: 'snapshot',       ar: 'اللقطات',        en: 'Snapshots',      icon: 'Camera' },
-  { id: 'skills',         ar: 'المهارات',       en: 'Skills',         icon: 'Package' },
-] as const
-
-export type AppSectionId = typeof APP_SECTIONS[number]['id'] | typeof DEV_SECTIONS[number]['id']
+export type AppSectionId = typeof APP_SECTIONS[number]['id']

@@ -14,18 +14,16 @@ import {
 import {
   MessageSquare, Brain, Share2, CheckSquare, Wrench,
   CalendarClock, Activity, ShieldCheck, Settings, LayoutDashboard,
-  Code2, Eye, TerminalSquare, Camera, Package,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   MessageSquare, Brain, Share2, CheckSquare, Wrench,
   CalendarClock, Activity, ShieldCheck, Settings, LayoutDashboard,
-  Code2, Eye, TerminalSquare, Camera, Package,
 }
 
 export function CommandPalette() {
-  const { commandPaletteOpen, setCommandPaletteOpen, setActiveSection, devMode, toggleDevMode } = useAppStore()
+  const { commandPaletteOpen, setCommandPaletteOpen, setActiveSection } = useAppStore()
 
   // Global ⌘K / Ctrl+K shortcut
   useEffect(() => {
@@ -42,7 +40,8 @@ export function CommandPalette() {
   const goTo = (section: string) => {
     setActiveSection(section as any)
     setCommandPaletteOpen(false)
-    toast.success(`انتقلت إلى: ${APP_SECTIONS.find(s => s.id === section)?.ar}`)
+    const sec = [...APP_SECTIONS, { id: 'dashboard', ar: 'لوحة القيادة', en: 'Dashboard', icon: 'LayoutDashboard' }].find(s => s.id === section)
+    toast.success(`انتقلت إلى: ${sec?.ar}`)
   }
 
   return (
@@ -51,6 +50,14 @@ export function CommandPalette() {
       <CommandList>
         <CommandEmpty>لا توجد نتائج</CommandEmpty>
         <CommandGroup heading="الأقسام">
+          <CommandItem
+            value="dashboard لوحة القيادة"
+            onSelect={() => goTo('dashboard')}
+          >
+            <LayoutDashboard className="w-4 h-4 ml-2" />
+            <span className="flex-1">لوحة القيادة</span>
+            <span className="text-xs text-muted-foreground">Dashboard</span>
+          </CommandItem>
           {APP_SECTIONS.map((s) => {
             const Icon = ICON_MAP[s.icon] ?? MessageSquare
             return (
@@ -70,6 +77,7 @@ export function CommandPalette() {
           <CommandItem
             value="محادثة جديدة new chat"
             onSelect={() => {
+              useAppStore.getState().setActiveConversationId(null)
               setActiveSection('chat')
               setCommandPaletteOpen(false)
               toast.success('محادثة جديدة')
@@ -108,83 +116,7 @@ export function CommandPalette() {
             <Settings className="w-4 h-4 ml-2" />
             <span>تبديل المظهر (داكن/فاتح)</span>
           </CommandItem>
-          <CommandItem
-            value="dev mode وضع التطوير toggle sandbox preview"
-            onSelect={() => {
-              toggleDevMode()
-              setCommandPaletteOpen(false)
-              toast.success(devMode ? 'تم إيقاف وضع التطوير' : 'تم تفعيل وضع التطوير')
-            }}
-          >
-            <Code2 className="w-4 h-4 ml-2" />
-            <span>{devMode ? 'إيقاف وضع التطوير' : 'تفعيل وضع التطوير'}</span>
-          </CommandItem>
         </CommandGroup>
-
-        {devMode && (
-          <CommandGroup heading="أدوات التطوير">
-            <CommandItem
-              value="sandbox كود تنفيذ execute python javascript"
-              onSelect={() => {
-                setActiveSection('sandbox')
-                setCommandPaletteOpen(false)
-              }}
-            >
-              <Code2 className="w-4 h-4 ml-2" />
-              <span>فتح Sandbox (تنفيذ كود)</span>
-            </CommandItem>
-            <CommandItem
-              value="preview معاينة iframe live"
-              onSelect={() => {
-                setActiveSection('preview')
-                setCommandPaletteOpen(false)
-              }}
-            >
-              <Eye className="w-4 h-4 ml-2" />
-              <span>فتح Preview Panel</span>
-            </CommandItem>
-            <CommandItem
-              value="devtools أدوات التطوير logs database api"
-              onSelect={() => {
-                setActiveSection('devtools')
-                setCommandPaletteOpen(false)
-              }}
-            >
-              <TerminalSquare className="w-4 h-4 ml-2" />
-              <span>فتح DevTools</span>
-            </CommandItem>
-            <CommandItem
-              value="snapshot لقطة camera screenshot"
-              onSelect={() => {
-                setActiveSection('snapshot')
-                setCommandPaletteOpen(false)
-              }}
-            >
-              <Camera className="w-4 h-4 ml-2" />
-              <span>إدارة اللقطات</span>
-            </CommandItem>
-            <CommandItem
-              value="skills مهارات browser"
-              onSelect={() => {
-                setActiveSection('skills')
-                setCommandPaletteOpen(false)
-              }}
-            >
-              <Package className="w-4 h-4 ml-2" />
-              <span>تصفح المهارات (69)</span>
-            </CommandItem>
-            <CommandItem
-              value="continuous dev تطوير مستمر hmr watch"
-              onSelect={() => {
-                setActiveSection('sandbox')
-                setCommandPaletteOpen(false)
-              }}
-            >
-              <Code2 className="w-4 h-4 ml-2" />
-              <span>التطوير المستمر (Sandbox)</span>
-            </CommandItem>
-          </CommandGroup>
-        )}
       </CommandList>
     </CommandDialog>
   )

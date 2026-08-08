@@ -8,25 +8,16 @@ export const maxDuration = 60
 
 /**
  * POST /api/chat
- * Body: { message, conversationId?, imageData?, goalMode?, activeSkills? }
- * Returns: Server-Sent Events stream with:
- *   - conversation id
- *   - thinking tokens (live)
- *   - answer tokens (live)
- *   - agent steps
- *   - final done event with stats
+ * Body: { message, conversationId?, imageData? }
+ * Returns: Server-Sent Events stream
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const {
-      message, conversationId, imageData, goalMode, activeSkills,
-    } = body as {
+    const { message, conversationId, imageData } = body as {
       message: string
       conversationId?: string
       imageData?: string
-      goalMode?: boolean
-      activeSkills?: string[]
     }
 
     if (!message || typeof message !== 'string') {
@@ -59,7 +50,6 @@ export async function POST(req: NextRequest) {
         try {
           sendEvent('conversation', { id: conv!.id })
 
-          // Vision preprocessing (if image attached)
           let effectiveMessage = message
           if (imageData) {
             sendEvent('step', {
@@ -109,8 +99,6 @@ export async function POST(req: NextRequest) {
             userId: user.id,
             conversationId: conv!.id,
             userMessage: effectiveMessage,
-            goalMode,
-            activeSkills,
             onStep: (step) => sendEvent('step', step),
             onThinkingToken: (token) => sendEvent('thinking', { token }),
             onAnswerToken: (token) => sendEvent('token', { token }),

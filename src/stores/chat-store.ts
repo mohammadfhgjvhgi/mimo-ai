@@ -19,12 +19,11 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
   reasoning?: string
-  thinkingContent?: string // Live thinking stream (separate from answer)
+  thinkingContent?: string
   toolCalls?: AgentStep[]
   status: 'pending' | 'streaming' | 'completed' | 'error'
   createdAt: string
   liveSteps?: AgentStep[]
-  // Stats from the run
   tokensUsed?: number
   thinkingTokens?: number
   durationMs?: number
@@ -37,12 +36,6 @@ interface ChatState {
   lastToolCallsCount: number
   lastTokensUsed: number
   lastDurationMs: number
-  // Goal mode + skills
-  goalMode: boolean
-  activeSkills: string[]
-  setGoalMode: (v: boolean) => void
-  toggleSkill: (skillName: string) => void
-  clearSkills: () => void
 
   setMessages: (m: ChatMessage[]) => void
   addMessage: (m: ChatMessage) => void
@@ -57,23 +50,13 @@ interface ChatState {
   setLastRunStats: (stats: { traceId: string; toolCallsCount: number; tokensUsed: number; totalDurationMs: number; thinkingTokens?: number }) => void
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   isStreaming: false,
   activeTraceId: null,
   lastToolCallsCount: 0,
   lastTokensUsed: 0,
   lastDurationMs: 0,
-  goalMode: false,
-  activeSkills: [],
-
-  setGoalMode: (v) => set({ goalMode: v }),
-  toggleSkill: (skillName) => set((s) => ({
-    activeSkills: s.activeSkills.includes(skillName)
-      ? s.activeSkills.filter(s => s !== skillName)
-      : [...s.activeSkills, skillName],
-  })),
-  clearSkills: () => set({ activeSkills: [] }),
 
   setMessages: (m) => set({ messages: m }),
   addMessage: (m) => set((s) => ({ messages: [...s.messages, m] })),

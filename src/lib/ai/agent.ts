@@ -22,7 +22,6 @@ import { db } from '@/lib/db'
 import { searchMemory, saveMemory, type MemorySearchResult } from '@/lib/ai/memory'
 import { extractAndSave } from '@/lib/ai/knowledge'
 import { executeTool, TOOLS } from '@/lib/ai/tools'
-import { loadSkillDescriptions, loadSkillContent } from '@/lib/ai/skills-loader'
 
 const ZAI_MODULE = await import('z-ai-web-dev-sdk')
 const ZAI = ZAI_MODULE.default
@@ -44,8 +43,6 @@ export interface AgentRunOptions {
   userId: string
   conversationId: string
   userMessage: string
-  goalMode?: boolean
-  activeSkills?: string[] // skill names to activate
   onStep?: (step: AgentStep) => void
   onThinkingToken?: (token: string) => void
   onAnswerToken?: (token: string) => void
@@ -83,12 +80,11 @@ export async function ensureDefaultUser() {
 }
 
 /**
- * Build system prompt with user profile + skills + memory context
+ * Build system prompt with user profile + memory context
  */
 async function buildSystemPrompt(
   userId: string,
-  retrievedMemories: MemorySearchResult[],
-  activeSkills?: string[]
+  retrievedMemories: MemorySearchResult[]
 ) {
   const user = await db.user.findUnique({ where: { id: userId } })
 
@@ -102,19 +98,6 @@ async function buildSystemPrompt(
     ? retrievedMemories.map(m => `- (${m.type}, أهمية: ${m.importance.toFixed(2)}) ${m.content}`).join('\n')
     : 'لا توجد ذكريات ذات صلة.'
 
-  // Skills (progressive disclosure — only descriptions, not full content)
-  let skillsSection = ''
-  if (activeSkills && activeSkills.length > 0) {
-    const allSkills = await loadSkillDescriptions()
-    const activeSkillDescs = allSkills
-      .filter(s => activeSkills.includes(s.name))
-      .map(s => `- **${s.name}**: ${s.description}`)
-      .join('\n')
-    if (activeSkillDescs) {
-      skillsSection = `\n## المهارات النشطة (Skills)\nالمهارات التالية مُفعّلة لهذه المحادثة. استخدم تعليماتها عند الحاجة:\n${activeSkillDescs}\n`
-    }
-  }
-
   return `أنت MiMo AI — مساعد ذكاء اصطناعي شخصي تعمل كـ Agent مستقل.
 
 ## معلومات المستخدم
@@ -125,7 +108,7 @@ async function buildSystemPrompt(
 
 ## سياق من الذاكرة (ذكريات ذات صلة)
 ${memoryContext}
-${skillsSection}
+
 ## أدوات متاحة لك
 ${toolList}
 
@@ -339,7 +322,7 @@ async function decomposeGoal(
  */
 export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunResult> {
   const {
-    userId, conversationId, userMessage, goalMode, activeSkills,
+    userId, conversationId, userMessage,
     onStep, onThinkingToken, onAnswerToken, maxSteps = 6,
   } = options
   const startTime = Date.now()
@@ -378,30 +361,10 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
       timestamp: new Date(),
     })
 
-    // STEP 2: Build system prompt with skills
-    const systemPrompt = await buildSystemPrompt(userId, retrievedMemories, activeSkills)
+    // STEP 2: Build system prompt
+    const systemPrompt = await buildSystemPrompt(userId, retrievedMemories)
 
-    // STEP 3: Goal decomposition (if goal mode)
-    if (goalMode) {
-      emit({
-        type: 'goal_decomposition',
-        content: 'تفكيك الهدف إلى مهام فرعية...',
-        status: 'pending',
-        isStreaming: true,
-        timestamp: new Date(),
-      })
-
-      const tasks = await decomposeGoal(userMessage, systemPrompt)
-
-      emit({
-        type: 'goal_decomposition',
-        content: `تم تفكيك الهدف إلى ${tasks.length} مهام:\n${tasks.map((t, i) => `${i + 1}. ${t}`).join('\n')}`,
-        status: 'success',
-        timestamp: new Date(),
-      })
-    }
-
-    // STEP 4: Load conversation history
+    // STEP 3: Load conversation history
     const history = await db.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'asc' },
