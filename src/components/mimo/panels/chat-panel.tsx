@@ -1,0 +1,401 @@
+'use client'
+
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useChatStore, type AgentStep, type ChatMessage } from '@/stores/chat-store'
+import { useAppStore } from '@/stores/app-store'
+import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import {
+  Send, Brain, Wrench, Activity, Lightbulb, Database,
+  Network, CheckCircle2, XCircle, Loader2, RotateCw,
+  Clock, Zap, Sparkles, ChevronDown, ChevronRight,
+} from 'lucide-react'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+
+const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  reasoning: Lightbulb,
+  tool_call: Wrench,
+  tool_result: CheckCircle2,
+  final_answer: Sparkles,
+  memory_op: Database,
+  kg_op: Network,
+}
+
+const STEP_COLORS: Record<string, string> = {
+  reasoning: 'text-amber-500',
+  tool_call: 'text-sky-500',
+  tool_result: 'text-emerald-500',
+  final_answer: 'text-primary',
+  memory_op: 'text-violet-500',
+  kg_op: 'text-rose-500',
+}
+
+function stepLabel(type: string): string {
+  const map: Record<string, string> = {
+    reasoning: 'تفكير',
+    tool_call: 'استدعاء أداة',
+    tool_result: 'نتيجة أداة',
+    final_answer: 'الإجابة النهائية',
+    memory_op: 'عملية ذاكرة',
+    kg_op: 'عملية معرفية',
+  }
+  return map[type] ?? type
+}
+
+function MessageBubble({ message }: { message: ChatMessage }) {
+  const isUser = message.role === 'user'
+  const [stepsOpen, setStepsOpen] = useState(true)
+
+  return (
+    <div className={cn('flex gap-3 animate-slide-in-up', isUser && 'flex-row-reverse')}>
+      <div className={cn(
+        'w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white text-xs font-bold',
+        isUser ? 'bg-secondary-foreground' : 'mimo-gradient'
+      )}>
+        {isUser ? 'أنت' : 'M'}
+      </div>
+
+      <div className={cn('flex-1 min-w-0', isUser && 'flex flex-col items-end')}>
+        {/* Live steps (reasoning trace) */}
+        {!isUser && message.liveSteps && message.liveSteps.length > 0 && (
+          <Collapsible open={stepsOpen} onOpenChange={setStepsOpen} className="mb-2 w-full">
+            <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              {stepsOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              <Activity className="w-3 h-3" />
+              <span>سلسلة التفكير ({message.liveSteps.length} خطوة)</span>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-2 space-y-1.5">
+              {message.liveSteps.map((step, idx) => {
+                const Icon = STEP_ICONS[step.type] ?? Activity
+                return (
+                  <div
+                    key={idx}
+                    className={cn(
+                      'flex items-start gap-2 text-xs px-2.5 py-1.5 rounded-md',
+                      'bg-muted/50 border border-border/50'
+                    )}
+                  >
+                    <Icon className={cn('w-3.5 h-3.5 mt-0.5 shrink-0', STEP_COLORS[step.type])} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4">
+                          {stepLabel(step.type)}
+                        </Badge>
+                        {step.toolName && (
+                          <span className="text-[10px] font-mono text-muted-foreground">{step.toolName}</span>
+                        )}
+                        {step.status === 'pending' && <Loader2 className="w-3 h-3 animate-spin" />}
+                        {step.status === 'success' && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
+                        {step.status === 'error' && <XCircle className="w-3 h-3 text-rose-500" />}
+                        {step.durationMs !== undefined && step.durationMs > 0 && (
+                          <span className="text-[10px] text-muted-foreground">{step.durationMs}ms</span>
+                        )}
+                      </div>
+                      <div className="text-muted-foreground break-words">{step.content}</div>
+
+                      {/* Tool input */}
+                      {step.toolInput && Object.keys(step.toolInput).length > 0 && (
+                        <pre className="mt-1 text-[10px] font-mono bg-muted p-1.5 rounded overflow-x-auto max-h-32">
+                          {JSON.stringify(step.toolInput, null, 2)}
+                        </pre>
+                      )}
+
+                      {/* Tool result */}
+                      {step.toolResult !== undefined && (
+                        <pre className="mt-1 text-[10px] font-mono bg-muted/70 p-1.5 rounded overflow-x-auto max-h-40">
+                          {typeof step.toolResult === 'string'
+                            ? step.toolResult
+                            : JSON.stringify(step.toolResult, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {/* Message content */}
+        <div className={cn(
+          'rounded-2xl px-4 py-2.5 max-w-[85%]',
+          isUser
+            ? 'bg-secondary text-secondary-foreground rounded-tr-sm'
+            : 'bg-card border border-border rounded-tl-sm'
+        )}>
+          <div className="prose-mimo whitespace-pre-wrap break-words">{message.content}</div>
+          {!isUser && message.status === 'streaming' && (
+            <span className="inline-block w-1.5 h-4 bg-primary animate-pulse-soft mr-0.5 align-middle" />
+          )}
+        </div>
+
+        {/* Status footer */}
+        {!isUser && message.status === 'completed' && (
+          <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground">
+            <Sparkles className="w-3 h-3" />
+            <span>MiMo AI</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function ChatPanel() {
+  const {
+    messages, addMessage, updateMessage, appendToMessage, addLiveStep,
+    isStreaming, setIsStreaming, setLastRunStats,
+  } = useChatStore()
+  const { activeConversationId, setActiveConversationId } = useAppStore()
+  const [input, setInput] = useState('')
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [messages])
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+    }
+  }, [input])
+
+  const send = useCallback(async () => {
+    const trimmed = input.trim()
+    if (!trimmed || isStreaming) return
+
+    setInput('')
+    setIsStreaming(true)
+
+    // Add user message immediately
+    const userMsg: ChatMessage = {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      content: trimmed,
+      status: 'completed',
+      createdAt: new Date().toISOString(),
+    }
+    addMessage(userMsg)
+
+    // Add placeholder assistant message
+    const assistantId = `a-${Date.now()}`
+    const assistantMsg: ChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      status: 'streaming',
+      liveSteps: [],
+      createdAt: new Date().toISOString(),
+    }
+    addMessage(assistantMsg)
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: trimmed,
+          conversationId: activeConversationId,
+        }),
+      })
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.body) throw new Error('No response body')
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() ?? ''
+
+        for (const eventStr of events) {
+          const lines = eventStr.split('\n')
+          let eventType = ''
+          let dataStr = ''
+          for (const line of lines) {
+            if (line.startsWith('event: ')) eventType = line.slice(7)
+            else if (line.startsWith('data: ')) dataStr = line.slice(6)
+          }
+          if (!eventType || !dataStr) continue
+
+          try {
+            const data = JSON.parse(dataStr)
+
+            if (eventType === 'conversation') {
+              setActiveConversationId(data.id)
+            } else if (eventType === 'step') {
+              const step: AgentStep = {
+                ...data,
+                timestamp: data.timestamp ?? new Date().toISOString(),
+              }
+              addLiveStep(assistantId, step)
+            } else if (eventType === 'token') {
+              appendToMessage(assistantId, data.token)
+            } else if (eventType === 'done') {
+              updateMessage(assistantId, { status: 'completed' })
+              setLastRunStats({
+                traceId: data.traceId,
+                toolCallsCount: data.toolCallsCount,
+                tokensUsed: data.tokensUsed,
+                totalDurationMs: data.totalDurationMs,
+              })
+              toast.success(`اكتمل الرد • ${data.toolCallsCount} أداة • ${data.tokensUsed} توكن • ${data.totalDurationMs}ms`)
+            } else if (eventType === 'error') {
+              updateMessage(assistantId, {
+                status: 'error',
+                content: `حدث خطأ: ${data.message}`,
+              })
+              toast.error(data.message)
+            }
+          } catch (e) {
+            // ignore parse errors
+          }
+        }
+      }
+    } catch (e) {
+      updateMessage(assistantId, {
+        status: 'error',
+        content: `فشل الاتصال: ${(e as Error).message}`,
+      })
+      toast.error('فشل الاتصال بالخادم')
+    } finally {
+      setIsStreaming(false)
+    }
+  }, [
+    input, isStreaming, addMessage, updateMessage, appendToMessage, addLiveStep,
+    setIsStreaming, setLastRunStats, activeConversationId, setActiveConversationId,
+  ])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      send()
+    }
+  }
+
+  const suggestions = [
+    'احفظ أنني أعمل على مشروع BMS باستخدام Arduino و Firebase',
+    'كم مهمة معلّقة لدي؟',
+    'ما هي آخر الذكريات التي حفظتها عني؟',
+    'احفظ أنني طالب هندسة كهربائية من الخليل',
+    'استخرج الكيانات من: محمد يعمل على مشروع BMS باستخدام Arduino',
+    'احسب: 1250 * 0.15 + 200',
+  ]
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 h-14 border-b border-border bg-card/50 backdrop-blur">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg mimo-gradient flex items-center justify-center">
+            <Brain className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <div className="font-semibold text-sm">المحادثة</div>
+            <div className="text-[10px] text-muted-foreground">
+              {isStreaming ? 'يعمل الآن...' : 'جاهز'}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {isStreaming && (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>ينفذ...</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Messages */}
+      <ScrollArea className="flex-1">
+        <div className="max-w-3xl mx-auto p-4 space-y-4">
+          {messages.length === 0 && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-2xl mimo-gradient flex items-center justify-center mx-auto mb-4">
+                <Sparkles className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-xl font-bold mb-2">مرحباً بك في MiMo AI</h2>
+              <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto">
+                مساعد ذكاء اصطناعي شخصي مع ذاكرة دائمة، رسم معرفي، وأدوات قابلة للتوسعة.
+                ابدأ بمحادثة أو جرّب أحد الاقتراحات التالية.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl mx-auto">
+                {suggestions.map((sug) => (
+                  <button
+                    key={sug}
+                    onClick={() => setInput(sug)}
+                    className="text-right p-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors text-xs"
+                  >
+                    {sug}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} message={msg} />
+          ))}
+
+          <div ref={scrollRef} />
+        </div>
+      </ScrollArea>
+
+      {/* Input */}
+      <div className="border-t border-border bg-card/50 backdrop-blur p-3">
+        <div className="max-w-3xl mx-auto">
+          <div className="relative flex items-end gap-2 rounded-xl border border-border bg-background p-2">
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="اكتب رسالتك إلى MiMo..."
+              disabled={isStreaming}
+              rows={1}
+              className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 min-h-[40px] max-h-[200px]"
+            />
+            <Button
+              onClick={send}
+              disabled={!input.trim() || isStreaming}
+              size="icon"
+              className="shrink-0 h-9 w-9 rounded-lg"
+            >
+              {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </Button>
+          </div>
+          <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Enter للإرسال • Shift+Enter لسطر جديد
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Zap className="w-3 h-3" />
+              <span>GLM</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

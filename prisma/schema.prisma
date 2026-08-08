@@ -1,0 +1,353 @@
+// MiMo AI — Personal AI Agent System
+// Comprehensive schema for memory, knowledge graph, tasks, tools, traces
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════
+// USER PROFILE & PREFERENCES
+// ═══════════════════════════════════════════════════════════════
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  avatar        String?
+  bio           String?
+  location      String?
+  occupation    String?
+  timezone      String   @default("Asia/Hebron")
+  language      String   @default("ar")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  conversations  Conversation[]
+  memories       Memory[]
+  entities       Entity[]
+  relations      Relation[]
+  tasks          Task[]
+  schedules      Schedule[]
+  traces         Trace[]
+  approvals      Approval[]
+  tools          ToolCall[]
+  apiKeys        ApiKey[]
+  preferences    Preference[]
+  skills         Skill[]
+}
+
+model Preference {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String   // e.g. "tone", "response_length", "language_style"
+  value     String   // JSON-encoded value
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  provider  String   // "openai", "anthropic", "google", "zai", "openrouter"
+  keyAlias  String   // human-readable alias
+  keyValue  String   // encrypted key (placeholder for demo)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONVERSATIONS & MESSAGES
+// ═══════════════════════════════════════════════════════════════
+
+model Conversation {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String    @default("محادثة جديدة")
+  summary     String?   // auto-generated summary for context management
+  isArchived  Boolean   @default(false)
+  isPinned    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    Message[]
+
+  @@index([userId, updatedAt])
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  conversationId  String
+  role            String   // "user" | "assistant" | "system" | "tool"
+  content         String   // markdown content
+  reasoning       String?  // chain-of-thought trace (if shown)
+  toolCalls       String?  // JSON array of tool calls made
+  tokenInput      Int      @default(0)
+  tokenOutput     Int      @default(0)
+  costUsd         Float    @default(0)
+  modelUsed       String?
+  status          String   @default("completed") // "pending", "streaming", "completed", "error"
+  createdAt       DateTime @default(now())
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MEMORY SYSTEM (7 types)
+// ═══════════════════════════════════════════════════════════════
+
+model Memory {
+  id            String   @id @default(cuid())
+  userId        String
+  type          String   // "working", "short_term", "long_term", "episodic", "semantic", "procedural", "preference"
+  category      String?  // sub-category e.g. "fact", "skill", "event", "relationship"
+  content       String   // the memory content
+  summary       String?  // short summary for retrieval
+  embedding     String?  // JSON-encoded embedding vector (for semantic search)
+  source        String   @default("user") // "user", "agent", "extracted", "imported"
+  sourceMessageId String?
+  importance    Float    @default(0.5) // 0.0 - 1.0
+  confidence    Float    @default(0.8) // 0.0 - 1.0
+  accessCount   Int      @default(0)
+  lastAccessed  DateTime?
+  expiresAt     DateTime? // for short-term memory
+  metadata      String?  // JSON for extra fields
+  isArchived    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([userId, createdAt])
+  @@index([userId, importance])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// KNOWLEDGE GRAPH — Entities & Relations
+// ═══════════════════════════════════════════════════════════════
+
+model Entity {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String   // canonical name
+  type        String   // "person", "project", "technology", "place", "organization", "concept", "skill", "event"
+  description String?
+  aliases     String?  // JSON array of alternative names
+  properties  String?  // JSON object of key-value properties
+  sourceMemoryIds String? // JSON array of memory IDs that mention this entity
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relationsAsSubject Relation[] @relation("subjectRelations")
+  relationsAsObject  Relation[] @relation("objectRelations")
+
+  @@unique([userId, name, type])
+  @@index([userId, type])
+  @@index([userId, name])
+}
+
+model Relation {
+  id          String   @id @default(cuid())
+  userId      String
+  subjectId   String   // from entity
+  objectId    String   // to entity
+  type        String   // "works_on", "uses", "located_in", "knows", "created", "depends_on", "related_to"
+  strength    Float    @default(1.0) // 0.0 - 1.0
+  context     String?  // additional context
+  sourceMemoryId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject     Entity   @relation("subjectRelations", fields: [subjectId], references: [id], onDelete: Cascade)
+  object      Entity   @relation("objectRelations", fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@unique([subjectId, objectId, type])
+  @@index([userId])
+  @@index([subjectId])
+  @@index([objectId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TASKS & PLANNING
+// ═══════════════════════════════════════════════════════════════
+
+model Task {
+  id          String   @id @default(cuid())
+  userId      String
+  parentId    String?  // for hierarchical tasks
+  title       String
+  description String?
+  status      String   @default("pending") // "pending", "in_progress", "completed", "failed", "blocked", "cancelled"
+  priority    String   @default("medium") // "low", "medium", "high", "critical"
+  category    String?  // "personal", "work", "learning", "project", "errand"
+  tags        String?  // JSON array
+  steps       String?  // JSON array of sub-steps with status
+  dueDate     DateTime?
+  scheduledAt DateTime?
+  completedAt DateTime?
+  relatedConversationId String?
+  relatedEntityIds String? // JSON array of entity IDs
+  progress    Float    @default(0.0) // 0.0 - 1.0
+  metadata    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent      Task?    @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    Task[]   @relation("TaskHierarchy")
+  approvals   Approval[]
+
+  @@index([userId, status])
+  @@index([userId, priority])
+  @@index([userId, dueDate])
+  @@index([parentId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCHEDULER & AUTOMATION
+// ═══════════════════════════════════════════════════════════════
+
+model Schedule {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  prompt      String   // the prompt to execute at the scheduled time
+  cronExpression String? // e.g. "0 8 * * *" for daily at 8am
+  nextRunAt   DateTime?
+  lastRunAt   DateTime?
+  isActive    Boolean  @default(true)
+  maxRuns     Int?     // null = unlimited
+  runsCount   Int      @default(0)
+  requiresApproval Boolean @default(false)
+  metadata    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive, nextRunAt])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TOOLS & TOOL CALLS
+// ═══════════════════════════════════════════════════════════════
+
+model ToolCall {
+  id          String   @id @default(cuid())
+  userId      String
+  traceId     String?
+  toolName    String   // "web_search", "file_read", "task_create", etc.
+  input       String   // JSON input args
+  output      String?  // JSON output
+  status      String   @default("pending") // "pending", "running", "success", "error", "cancelled"
+  errorMessage String?
+  durationMs  Int      @default(0)
+  tokensUsed  Int      @default(0)
+  costUsd     Float    @default(0)
+  requiresApproval Boolean @default(false)
+  approved    Boolean  @default(false)
+  approvedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trace       Trace?   @relation(fields: [traceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, toolName])
+  @@index([userId, createdAt])
+  @@index([traceId])
+}
+
+model Skill {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  category    String?  // "coding", "research", "writing", "automation"
+  triggerPattern String? // regex or keyword
+  procedure   String   // JSON workflow steps
+  examples    String?  // JSON array of usage examples
+  successCount Int     @default(0)
+  failureCount Int     @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, category])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TRACES & OBSERVABILITY
+// ═══════════════════════════════════════════════════════════════
+
+model Trace {
+  id          String   @id @default(cuid())
+  userId      String
+  conversationId String?
+  traceType   String   // "agent_run", "tool_chain", "memory_op", "kg_op"
+  title       String
+  description String?
+  status      String   @default("pending") // "pending", "running", "completed", "failed"
+  steps       String?  // JSON array of step objects {step, action, result, duration, status}
+  totalDurationMs Int  @default(0)
+  totalTokens Int      @default(0)
+  totalCostUsd Float   @default(0)
+  errorMessage String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toolCalls   ToolCall[]
+
+  @@index([userId, createdAt])
+  @@index([userId, traceType])
+  @@index([conversationId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// APPROVALS (Human-in-the-Loop)
+// ═══════════════════════════════════════════════════════════════
+
+model Approval {
+  id          String   @id @default(cuid())
+  userId      String
+  taskId      String?
+  traceId     String?
+  action      String   // description of action to approve
+  actionType  String   // "file_delete", "send_email", "execute_code", "external_call"
+  payload     String?  // JSON details
+  status      String   @default("pending") // "pending", "approved", "rejected", "expired"
+  reason      String?  // why approval is needed
+  decidedAt   DateTime?
+  decidedBy   String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([taskId])
+}
