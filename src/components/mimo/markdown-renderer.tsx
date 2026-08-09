@@ -8,14 +8,88 @@ import { Check, Copy, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/stores/app-store'
 import { cn } from '@/lib/utils'
+import { Artifact } from '@/components/mimo/artifact'
 
 interface MarkdownRendererProps {
   content: string
   className?: string
 }
 
+/**
+ * Preprocess content to fix common LLM markdown issues:
+ * 1. Normalize excessive backticks (4+ → 3)
+ * 2. Fix ```langCODE → ```lang\nCODE (when language identifier is followed by code on same line)
+ * 3. Fix ```CODE → ```\nCODE (when no language but code on same line)
+ * 4. Convert inline code with language prefix to code blocks
+ * 5. Convert long inline code to code blocks
+ */
+function preprocessMarkdown(content: string): string {
+  if (!content) return ''
+
+  let result = content
+
+  // Pattern -1: Normalize excessive backticks (4+ backticks become 3)
+  result = result.replace(/`{4,}/g, '```')
+
+  // Pattern 0: Fix ```langCODE → ```lang\nCODE
+  // Only when language is followed by code (not newline)
+  const knownLangsForP0 = ['python', 'javascript', 'typescript', 'bash', 'html', 'css', 'json', 'sql', 'yaml', 'xml', 'java', 'cpp', 'go', 'rust', 'php', 'ruby', 'kotlin', 'swift', 'scala']
+  const langPlusCodePattern = new RegExp('```(' + knownLangsForP0.join('|') + ')([a-zA-Z_#<!/(][^\\n\\s]*)', 'g')
+  result = result.replace(langPlusCodePattern, (match, lang: string, codeStart: string) => {
+    return '```' + lang + '\n' + codeStart
+  })
+
+  // Pattern 0c: Fix ```CODE → ```\nCODE (no language, code on same line)
+  // Only match opening fences (non-whitespace follows), not closing fences
+  const knownLangsList = ['python', 'javascript', 'js', 'typescript', 'ts', 'bash', 'sh', 'html', 'css', 'json', 'sql', 'yaml', 'xml', 'java', 'cpp', 'go', 'rust', 'php', 'ruby', 'kotlin', 'swift', 'scala', 'r', 'matlab', 'perl']
+  const knownLangPattern = knownLangsList.join('|')
+  const fenceWithoutLang = new RegExp('```(?!(?:' + knownLangPattern + ')\\n)([a-zA-Z_#<(\\/])', 'g')
+  result = result.replace(fenceWithoutLang, (match, char: string) => {
+    return '```\n' + char
+  })
+
+  // Pattern 1: `languageCODE` where language is python/js/etc
+  const langInlinePattern = /`((?:python|javascript|js|typescript|ts|bash|sh|html|css|json|sql|yaml|xml|java|c|cpp|go|rust|php|ruby|kotlin|swift|scala|r|matlab|perl)([\s\S]*?))`/g
+  result = result.replace(langInlinePattern, (match, code: string) => {
+    const langMatch = code.match(/^(python|javascript|js|typescript|ts|bash|sh|html|css|json|sql|yaml|xml|java|c|cpp|go|rust|php|ruby|kotlin|swift|scala|r|matlab|perl)/)
+    if (langMatch) {
+      const lang = langMatch[1]
+      const actualCode = code.slice(lang.length)
+      if (/[(){}\[\]=;:]/.test(actualCode) || actualCode.includes('\n')) {
+        const normalizedLang = lang === 'js' ? 'javascript' : lang === 'ts' ? 'typescript' : lang
+        return '```' + normalizedLang + '\n' + actualCode + '\n```'
+      }
+    }
+    return match
+  })
+
+  // Pattern 2: Long inline code (>40 chars) with multiple statements
+  result = result.replace(/`([^`\n]{40,})`/g, (match, code: string) => {
+    if (/[(){}\[\]=;]/.test(code) && code.length > 40) {
+      return '```\n' + code + '\n```'
+    }
+    return match
+  })
+
+  // Pattern 3: Inline code with newlines
+  result = result.replace(/`([^`]*\n[^`]*)`/g, (match, code: string) => {
+    const firstLine = code.split('\n')[0].trim()
+    const langMatch = firstLine.match(/^(python|javascript|js|typescript|ts|bash|sh|html|css|json|sql|yaml|xml|java|c|cpp|go|rust|php|ruby|kotlin|swift|scala|r|matlab|perl)\s*$/)
+    if (langMatch) {
+      const lang = langMatch[1]
+      const actualCode = code.split('\n').slice(1).join('\n')
+      const normalizedLang = lang === 'js' ? 'javascript' : lang === 'ts' ? 'typescript' : lang
+      return '```' + normalizedLang + '\n' + actualCode + '\n```'
+    }
+    return '```\n' + code + '\n```'
+  })
+
+  return result
+}
+
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   const { theme } = useAppStore()
+  const processed = preprocessMarkdown(content)
 
   return (
     <div className={cn('prose-mimo', className)}>
@@ -24,15 +98,13 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           // Code blocks with syntax highlighting
           code({ node, className, children, ...props }: any) {
             const match = /language-(\w+)/.exec(className || '')
-            // Get the raw text - handle both string and array children
             const rawChildren = Array.isArray(children) ? children.join('') : String(children)
             const codeStr = rawChildren.replace(/\n$/, '')
 
-            // Detect block code: has language OR contains newlines OR is long
-            const isBlock = match || codeStr.includes('\n') || codeStr.length > 80
+            // Inline code: no language class AND short AND no newlines
+            const isInline = !match && !codeStr.includes('\n') && codeStr.length < 60
 
-            if (!isBlock) {
-              // Inline code
+            if (isInline) {
               return (
                 <code
                   className="px-1.5 py-0.5 rounded bg-muted text-primary font-mono text-[0.85em] border border-border"
@@ -43,21 +115,34 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
               )
             }
 
-            // Block code with syntax highlighting
-            // Strip leading language identifier if LLM forgot triple backticks
-            // e.g. "python\ndef foo():..." -> language="python", code="def foo():..."
+            // Block code
             let language = match ? match[1] : 'text'
             let displayCode = codeStr
 
-            // Detect "python" or "javascript" prefix when no language class
+            // Strip language identifier prefix if present in the code itself
             if (!match) {
-              const langMatch = codeStr.match(/^(python|javascript|js|typescript|ts|bash|sh|html|css|json|sql|yaml|xml)\s*\n([\s\S]*)/)
+              const langMatch = codeStr.match(/^(python|javascript|js|typescript|ts|bash|sh|html|css|json|sql|yaml|xml|java|c|cpp|go|rust|php|ruby|kotlin|swift|scala|r|matlab|perl)\s*\n([\s\S]*)/)
               if (langMatch) {
                 language = langMatch[1] === 'js' ? 'javascript' : langMatch[1] === 'ts' ? 'typescript' : langMatch[1]
                 displayCode = langMatch[2]
               }
             }
 
+            // Use Artifact for HTML (has live preview) or for long code (>5 lines)
+            const lineCount = displayCode.split('\n').length
+            const isHtml = language === 'html' || displayCode.trim().startsWith('<!DOCTYPE') || displayCode.trim().startsWith('<html')
+
+            if (isHtml || lineCount > 5) {
+              return (
+                <Artifact
+                  type={isHtml ? 'html' : 'code'}
+                  language={language}
+                  code={displayCode}
+                />
+              )
+            }
+
+            // Short code blocks: use simple CodeBlock
             return (
               <CodeBlock
                 code={displayCode}
@@ -135,9 +220,8 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
             return <h4 className="text-sm font-medium mt-2 mb-1 text-foreground">{children}</h4>
           },
 
-          // Paragraphs
+          // Paragraphs (use div to avoid hydration issues with nested block elements)
           p({ children }: any) {
-            // Use div instead of p to avoid hydration errors with nested block elements
             return <div className="my-1.5 leading-relaxed">{children}</div>
           },
 
@@ -155,7 +239,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           },
         }}
       >
-        {content}
+        {processed}
       </ReactMarkdown>
     </div>
   )
