@@ -19,10 +19,11 @@ import {
 interface ConversationItem {
   id: string
   title: string
-  updatedAt: string
-  isPinned: boolean
-  _count: { messages: number }
-  messages: Array<{ content: string; role: string; createdAt: string }>
+  updatedAt: number | string
+  pinned?: boolean
+  isPinned?: boolean
+  _count?: { messages: number }
+  messages: Array<{ content: string; role: string; createdAt?: string; time?: number }>
 }
 
 interface ConversationsSidebarProps {
@@ -54,7 +55,6 @@ function stripMarkdown(text: string): string {
 }
 
 function getPreview(conversation: ConversationItem): { preview: string; isUser: boolean } {
-  // Get the last message that's not empty
   for (let i = conversation.messages.length - 1; i >= 0; i--) {
     const msg = conversation.messages[i]
     if (msg.content && msg.content.trim()) {
@@ -70,8 +70,8 @@ function getPreview(conversation: ConversationItem): { preview: string; isUser: 
   return { preview: 'محادثة فارغة', isUser: false }
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr)
+function formatRelativeTime(dateVal: number | string): string {
+  const date = typeof dateVal === 'number' ? new Date(dateVal) : new Date(dateVal)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffMin = Math.floor(diffMs / 60000)
@@ -116,20 +116,17 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
   }
 
   const handleSelect = async (id: string) => {
-    if (id === activeConversationId) {
-      onClose()
-      return
-    }
+    if (id === activeConversationId) { onClose(); return }
     try {
-      const res = await fetch(`/api/conversations/${id}`)
-      const data = await res.json()
-      if (data.conversation) {
-        const loaded = data.conversation.messages.map((m: any) => ({
-          id: m.id,
-          role: m.role,
+      // The conversations API already returns messages, use the cached data
+      const conv = conversations.find(c => c.id === id)
+      if (conv && conv.messages) {
+        const loaded = conv.messages.map((m: any) => ({
+          id: m.id || `m-${Math.random()}`,
+          role: m.role === 'ai' ? 'assistant' : m.role,
           content: m.content,
           status: 'completed' as const,
-          createdAt: m.createdAt,
+          createdAt: m.time ? new Date(m.time).toISOString() : (m.createdAt || new Date().toISOString()),
         }))
         setMessages(loaded)
         setActiveConversationId(id)
@@ -146,14 +143,9 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
     try {
       await fetch(`/api/conversations/${id}`, { method: 'DELETE' })
       toast.success('تم حذف المحادثة')
-      if (id === activeConversationId) {
-        clearMessages()
-        setActiveConversationId(null)
-      }
+      if (id === activeConversationId) { clearMessages(); setActiveConversationId(null) }
       fetchConversations()
-    } catch {
-      toast.error('فشل الحذف')
-    }
+    } catch { toast.error('فشل الحذف') }
   }
 
   const handleTogglePin = async (id: string, currentlyPinned: boolean, e: React.MouseEvent) => {
@@ -162,12 +154,10 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
       await fetch(`/api/conversations/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPinned: !currentlyPinned }),
+        body: JSON.stringify({ pinned: !currentlyPinned }),
       })
       fetchConversations()
-    } catch {
-      toast.error('فشل التحديث')
-    }
+    } catch { toast.error('فشل التحديث') }
   }
 
   const filtered = conversations.filter(c =>
@@ -242,6 +232,8 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
               filtered.map((conv) => {
                 const isActive = conv.id === activeConversationId
                 const { preview, isUser } = getPreview(conv)
+                const isPinned = conv.pinned ?? conv.isPinned ?? false
+                const msgCount = conv._count?.messages ?? conv.messages.length
                 return (
                   <div
                     key={conv.id}
@@ -258,7 +250,7 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
                         'w-7 h-7 rounded-md flex items-center justify-center shrink-0',
                         isActive ? 'mimo-gradient' : 'bg-muted'
                       )}>
-                        {conv.isPinned ? (
+                        {isPinned ? (
                           <Pin className={cn('w-3 h-3', isActive ? 'text-white' : 'text-primary')} />
                         ) : (
                           <MessageSquare className={cn('w-3 h-3', isActive ? 'text-white' : 'text-muted-foreground')} />
@@ -278,9 +270,9 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start">
-                              <DropdownMenuItem onClick={(e) => handleTogglePin(conv.id, conv.isPinned, e as any)}>
+                              <DropdownMenuItem onClick={(e) => handleTogglePin(conv.id, isPinned, e as any)}>
                                 <Pin className="w-3 h-3 ml-2" />
-                                {conv.isPinned ? 'إلغاء التثبيت' : 'تثبيت'}
+                                {isPinned ? 'إلغاء التثبيت' : 'تثبيت'}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={(e) => handleDelete(conv.id, e as any)}
@@ -304,8 +296,8 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
                             {formatRelativeTime(conv.updatedAt)}
                           </span>
                           <span>•</span>
-                          <span>{conv._count.messages} رسالة</span>
-                          {conv.isPinned && (
+                          <span>{msgCount} رسالة</span>
+                          {isPinned && (
                             <>
                               <span>•</span>
                               <span className="text-primary">مثبّتة</span>

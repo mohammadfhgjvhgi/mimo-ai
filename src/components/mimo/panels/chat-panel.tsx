@@ -50,28 +50,21 @@ const STEP_LABELS: Record<string, string> = {
   kg_op: 'معرفة',
 }
 
-const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  web_search: Globe,
-  page_reader: FileText,
-  memory_save: Database,
-  memory_query: Search,
-  entity_extract: Network,
-  knowledge_query: Share2,
-  task_create: CheckCircle2,
-  task_list: ClipboardList,
-  code_execute: Terminal,
-  calculator: Calculator,
-  chart_generate: BarChart3,
-  file_read: FileText,
-  file_write: FileText,
-  file_list: FileText,
+// Map action_trace stages to step types
+function stageToStepType(stage: string): string {
+  switch (stage) {
+    case 'context': return 'memory_op'
+    case 'reasoning': return 'reasoning'
+    case 'validation': return 'final_answer'
+    case 'response': return 'final_answer'
+    default: return 'reasoning'
+  }
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
   const hasSteps = (message.liveSteps?.length ?? 0) > 0
   const hasThinking = (message.thinkingContent?.length ?? 0) > 0
-  // Auto-expand details while streaming (initial state only)
   const [showDetails, setShowDetails] = useState(
     message.status === 'streaming' && (hasSteps || hasThinking)
   )
@@ -106,7 +99,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           )}
         </div>
 
-        {/* Details (thinking + steps) - collapsible */}
+        {/* Details */}
         {!isUser && (hasSteps || hasThinking) && showDetails && (
           <div className="mb-2 w-full space-y-1.5 max-w-[90%]">
             {hasThinking && (
@@ -127,7 +120,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           </div>
         )}
 
-        {/* Message content */}
+        {/* Content */}
         <div className={cn(
           'rounded-2xl px-4 py-2.5 max-w-[90%] sm:max-w-[85%]',
           isUser
@@ -158,42 +151,17 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           )}
         </div>
 
-        {/* Status footer with actions */}
+        {/* Footer */}
         {!isUser && message.status === 'completed' && (
           <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => playTTS(message.content)}
-            >
-              <Volume2 className="w-3 h-3 ml-1" />
-              استماع
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => playTTS(message.content)}>
+              <Volume2 className="w-3 h-3 ml-1" /> استماع
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => {
-                navigator.clipboard.writeText(message.content)
-                toast.success('تم النسخ')
-              }}
-            >
-              <Copy className="w-3 h-3 ml-1" />
-              نسخ
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => { navigator.clipboard.writeText(message.content); toast.success('تم النسخ') }}>
+              <Copy className="w-3 h-3 ml-1" /> نسخ
             </Button>
-            {message.tokensUsed ? (
-              <Badge variant="outline" className="text-[9px] py-0 h-4">
-                <Zap className="w-2.5 h-2.5 ml-0.5" />
-                {message.tokensUsed}
-              </Badge>
-            ) : null}
-            {message.durationMs ? (
-              <Badge variant="outline" className="text-[9px] py-0 h-4">
-                <Clock className="w-2.5 h-2.5 ml-0.5" />
-                {(message.durationMs / 1000).toFixed(1)}ث
-              </Badge>
-            ) : null}
+            {message.tokensUsed ? <Badge variant="outline" className="text-[9px] py-0 h-4"><Zap className="w-2.5 h-2.5 ml-0.5" />{message.tokensUsed}</Badge> : null}
+            {message.durationMs ? <Badge variant="outline" className="text-[9px] py-0 h-4"><Clock className="w-2.5 h-2.5 ml-0.5" />{(message.durationMs / 1000).toFixed(1)}ث</Badge> : null}
           </div>
         )}
       </div>
@@ -201,125 +169,31 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   )
 }
 
-// Compact step card
 function StepCard({ step, index }: { step: AgentStep; index: number }) {
   const Icon = STEP_ICONS[step.type] ?? Activity
   const color = STEP_COLORS[step.type] ?? 'text-muted-foreground'
-  const ToolIcon = step.toolName ? (TOOL_ICONS[step.toolName] ?? Icon) : Icon
-
   return (
     <div className="rounded-md border border-border/50 bg-muted/30 px-2.5 py-1.5 text-xs">
       <div className="flex items-center gap-1.5">
         <span className="text-[9px] text-muted-foreground font-mono">#{index + 1}</span>
-        <ToolIcon className={cn('w-3 h-3 shrink-0', color)} />
+        <Icon className={cn('w-3 h-3 shrink-0', color)} />
         <span className="text-[10px]">{STEP_LABELS[step.type] ?? step.type}</span>
-        {step.toolName && (
-          <span className="text-[10px] font-mono text-muted-foreground">{step.toolName}</span>
-        )}
+        {step.toolName && <span className="text-[10px] font-mono text-muted-foreground">{step.toolName}</span>}
         {step.status === 'pending' && <Loader2 className="w-3 h-3 animate-spin mr-auto" />}
         {step.status === 'streaming' && <Loader2 className="w-3 h-3 animate-spin mr-auto" />}
         {step.status === 'success' && <CheckCircle2 className="w-3 h-3 text-emerald-500 mr-auto" />}
         {step.status === 'error' && <XCircle className="w-3 h-3 text-rose-500 mr-auto" />}
-        {step.durationMs ? (
-          <span className="text-[9px] text-muted-foreground mr-auto">{step.durationMs}ms</span>
-        ) : null}
+        {step.durationMs ? <span className="text-[9px] text-muted-foreground mr-auto">{step.durationMs}ms</span> : null}
       </div>
       <div className="text-muted-foreground break-words text-[10px] mt-0.5">{step.content}</div>
-
-      {step.toolResult !== undefined && step.toolResult !== null && (
-        <ToolResultRenderer result={step.toolResult} toolName={step.toolName} />
-      )}
     </div>
   )
 }
 
-// Smart tool result renderer
-function ToolResultRenderer({ result, toolName }: { result: unknown; toolName?: string }) {
-  const [expanded, setExpanded] = useState(false)
-
-  // Chart image
-  if (typeof result === 'object' && result !== null && !Array.isArray(result) && 'imageDataUrl' in (result as Record<string, unknown>)) {
-    const r = result as Record<string, unknown>
-    return (
-      <div className="mt-1.5">
-        <img
-          src={String(r.imageDataUrl)}
-          alt={String(r.title ?? 'chart')}
-          className="w-full max-w-md rounded-md border border-border"
-        />
-      </div>
-    )
-  }
-
-  // Web search results
-  if (toolName === 'web_search' && typeof result === 'object' && result !== null) {
-    const r = result as Record<string, unknown>
-    const results = Array.isArray(r.results) ? r.results : []
-    return (
-      <div className="mt-1.5 space-y-1">
-        {results.slice(0, expanded ? results.length : 3).map((item, i) => {
-          const r = item as Record<string, unknown>
-          return (
-            <a
-              key={i}
-              href={String(r.url)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block p-1.5 rounded bg-background/50 border border-border/50 hover:bg-accent transition-colors"
-            >
-              <div className="text-[10px] font-medium text-primary truncate">{String(r.title ?? '')}</div>
-              <div className="text-[9px] text-muted-foreground truncate">{String(r.host ?? '')}</div>
-              <div className="text-[9px] text-muted-foreground line-clamp-2 mt-0.5">{String(r.snippet ?? '')}</div>
-            </a>
-          )
-        })}
-        {results.length > 3 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-[9px] text-primary hover:underline"
-          >
-            {expanded ? 'عرض أقل' : `+${results.length - 3} نتائج`}
-          </button>
-        )}
-      </div>
-    )
-  }
-
-  // Default: collapsible JSON
-  const json = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-  const isLong = json.length > 150
-
-  return (
-    <div className="mt-1 rounded bg-background/50 border border-border/50 p-1" dir="ltr">
-      <pre className={cn('text-[9px] font-mono overflow-x-auto', !expanded && isLong && 'max-h-16 overflow-hidden')}>
-        {isLong && !expanded ? json.slice(0, 150) + '...' : json}
-      </pre>
-      {isLong && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-[9px] text-primary hover:underline mt-0.5"
-        >
-          {expanded ? '−' : `+ (${json.length})`}
-        </button>
-      )}
-    </div>
-  )
-}
-
-// TTS playback
 let currentAudio: HTMLAudioElement | null = null
 function playTTS(text: string) {
-  if (currentAudio) {
-    currentAudio.pause()
-    currentAudio = null
-  }
-  const truncated = text.slice(0, 1000)
-  toast.info('جاري توليد الصوت...')
-  fetch('/api/tts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: truncated }),
-  })
+  if (currentAudio) { currentAudio.pause(); currentAudio = null }
+  fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text.slice(0, 1000) }) })
     .then(r => r.ok ? r.blob() : Promise.reject(new Error('فشل TTS')))
     .then(blob => {
       const url = URL.createObjectURL(blob)
@@ -333,7 +207,7 @@ function playTTS(text: string) {
 
 export function ChatPanel() {
   const {
-    messages, addMessage, updateMessage, appendToMessage, appendToThinking, addLiveStep,
+    messages, addMessage, updateMessage, appendToMessage, addLiveStep,
     isStreaming, setIsStreaming, setLastRunStats,
   } = useChatStore()
   const { activeConversationId, setActiveConversationId } = useAppStore()
@@ -344,10 +218,7 @@ export function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
+  useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -383,13 +254,23 @@ export function ChatPanel() {
     })
 
     try {
+      // Build messages array for the new API format
+      const apiMessages = messages.map(m => ({
+        role: m.role === 'assistant' ? 'ai' : m.role,
+        content: m.content,
+      }))
+      apiMessages.push({ role: 'user', content: trimmed })
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: trimmed,
+          messages: apiMessages,
+          model: 'glm-4.6',
+          mode: 'chat',
+          deepThink: true,
+          webSearch: false,
           conversationId: activeConversationId,
-          imageData,
         }),
       })
 
@@ -413,36 +294,54 @@ export function ChatPanel() {
           let eventType = ''
           let dataStr = ''
           for (const line of lines) {
-            if (line.startsWith('event: ')) eventType = line.slice(7)
+            if (line.startsWith('event: ')) eventType = line.slice(7).trim()
             else if (line.startsWith('data: ')) dataStr = line.slice(6)
           }
           if (!eventType || !dataStr) continue
 
           try {
             const data = JSON.parse(dataStr)
-            if (eventType === 'conversation') {
-              setActiveConversationId(data.id)
-            } else if (eventType === 'step') {
-              addLiveStep(assistantId, { ...data, timestamp: data.timestamp ?? new Date().toISOString() })
-            } else if (eventType === 'thinking') {
-              appendToThinking(assistantId, data.token)
+
+            if (eventType === 'action_trace') {
+              const stepType = stageToStepType(data.stage)
+              addLiveStep(assistantId, {
+                type: stepType as any,
+                content: `${data.verb}: ${data.detail}`,
+                status: data.status === 'done' ? 'success' : data.status === 'working' ? 'streaming' : data.status,
+                durationMs: data.durationMs,
+                timestamp: new Date().toISOString(),
+              })
+            } else if (eventType === 'context_recall') {
+              if (data.memories?.length > 0 || data.entities?.length > 0) {
+                addLiveStep(assistantId, {
+                  type: 'memory_op',
+                  content: `تم استرجاع ${data.memories?.length ?? 0} ذكرى و ${data.entities?.length ?? 0} كيان`,
+                  status: 'success',
+                  timestamp: new Date().toISOString(),
+                })
+              }
+            } else if (eventType === 'plan') {
+              addLiveStep(assistantId, {
+                type: 'reasoning',
+                content: `خطة: ${data.steps} خطوات (${data.complexity}) — النية: ${data.intent}`,
+                status: 'success',
+                timestamp: new Date().toISOString(),
+              })
             } else if (eventType === 'token') {
-              appendToMessage(assistantId, data.token)
+              appendToMessage(assistantId, data.text || data.token || '')
             } else if (eventType === 'done') {
               updateMessage(assistantId, {
                 status: 'completed',
-                tokensUsed: data.tokensUsed,
-                thinkingTokens: data.thinkingTokens,
-                durationMs: data.totalDurationMs,
+                tokensUsed: data.tokenCount,
+                durationMs: data.durationMs,
               })
               setLastRunStats({
-                traceId: data.traceId,
-                toolCallsCount: data.toolCallsCount,
-                tokensUsed: data.tokensUsed,
-                totalDurationMs: data.totalDurationMs,
-                thinkingTokens: data.thinkingTokens,
+                traceId: data.traceId || '',
+                toolCallsCount: 0,
+                tokensUsed: data.tokenCount || 0,
+                totalDurationMs: data.durationMs || 0,
               })
-              toast.success(`${data.toolCallsCount} أداة • ${data.tokensUsed} توكن • ${(data.totalDurationMs / 1000).toFixed(1)}ث`)
+              toast.success(`${data.tokenCount || 0} توكن • ${((data.durationMs || 0) / 1000).toFixed(1)}ث`)
             } else if (eventType === 'error') {
               updateMessage(assistantId, { status: 'error', content: `حدث خطأ: ${data.message}` })
               toast.error(data.message)
@@ -460,39 +359,12 @@ export function ChatPanel() {
       setIsStreaming(false)
     }
   }, [
-    input, isStreaming, addMessage, updateMessage, appendToMessage, appendToThinking, addLiveStep,
-    setIsStreaming, setLastRunStats, activeConversationId, setActiveConversationId, imageData,
+    input, isStreaming, messages, addMessage, updateMessage, appendToMessage, addLiveStep,
+    setIsStreaming, setLastRunStats, activeConversationId,
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      send()
-    }
-  }
-
-  const exportConversation = async () => {
-    if (!activeConversationId) {
-      toast.error('لا توجد محادثة نشطة للتصدير')
-      return
-    }
-    toast.info('جاري توليد PDF...')
-    try {
-      const res = await fetch(`/api/export?conversationId=${activeConversationId}`)
-      if (!res.ok) throw new Error('فشل التصدير')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `mimo-conversation-${new Date().toISOString().slice(0, 10)}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      toast.success('تم تصدير المحادثة')
-    } catch (e) {
-      toast.error((e as Error).message)
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
   }
 
   const suggestions = [
@@ -513,13 +385,7 @@ export function ChatPanel() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-14 border-b border-border bg-card/50 backdrop-blur">
         <div className="flex items-center gap-2">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            onClick={() => setConversationsOpen(true)}
-            title="المحادثات السابقة"
-          >
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setConversationsOpen(true)} title="المحادثات السابقة">
             <MessageSquare className="w-4 h-4" />
           </Button>
           <div className="w-8 h-8 rounded-lg mimo-gradient flex items-center justify-center">
@@ -527,30 +393,11 @@ export function ChatPanel() {
           </div>
           <div>
             <div className="font-semibold text-sm">المحادثة</div>
-            <div className="text-[10px] text-muted-foreground">
-              {isStreaming ? 'يعمل الآن...' : 'جاهز'}
-            </div>
+            <div className="text-[10px] text-muted-foreground">{isStreaming ? 'يعمل الآن...' : 'جاهز'}</div>
           </div>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {messages.length > 0 && !isStreaming && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 text-xs"
-              onClick={exportConversation}
-              title="تصدير المحادثة كـ PDF"
-            >
-              <FileText className="w-3.5 h-3.5 ml-1" />
-              <span className="hidden sm:inline">تصدير PDF</span>
-            </Button>
-          )}
-          {isStreaming && (
-            <>
-              <Loader2 className="w-3 h-3 animate-spin" />
-              <span>ينفذ...</span>
-            </>
-          )}
+          {isStreaming && (<><Loader2 className="w-3 h-3 animate-spin" /><span>ينفذ...</span></>)}
         </div>
       </div>
 
@@ -565,18 +412,13 @@ export function ChatPanel() {
               <h2 className="text-xl font-bold mb-2">مرحباً بك في MiMo AI</h2>
               <p className="text-muted-foreground text-sm mb-6 max-w-md mx-auto">
                 مساعد ذكاء اصطناعي شخصي مع ذاكرة دائمة، رسم معرفي، وأدوات قابلة للتوسعة.
-                ابدأ بمحادثة أو جرّب أحد الاقتراحات التالية.
               </p>
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl mx-auto">
                 {suggestions.map((sug) => {
                   const Icon = sug.icon
                   return (
-                    <button
-                      key={sug.text}
-                      onClick={() => setInput(sug.text)}
-                      className="text-right p-3 rounded-lg border border-border bg-card hover:bg-accent hover:border-primary/30 transition-all text-xs flex items-start gap-2 group"
-                    >
+                    <button key={sug.text} onClick={() => setInput(sug.text)}
+                      className="text-right p-3 rounded-lg border border-border bg-card hover:bg-accent hover:border-primary/30 transition-all text-xs flex items-start gap-2 group">
                       <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
                         <Icon className="w-3.5 h-3.5 text-primary" />
                       </div>
@@ -587,11 +429,7 @@ export function ChatPanel() {
               </div>
             </div>
           )}
-
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
-          ))}
-
+          {messages.map((msg) => (<MessageBubble key={msg.id} message={msg} />))}
           <div ref={scrollRef} />
         </div>
       </ScrollArea>
@@ -600,29 +438,12 @@ export function ChatPanel() {
       <div className="border-t border-border bg-card/50 backdrop-blur p-3">
         <div className="max-w-3xl mx-auto">
           <div className="relative flex items-end gap-2 rounded-xl border border-border bg-background p-2 focus-within:border-primary/50 transition-colors">
-            <Textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="اكتب رسالتك إلى MiMo..."
-              disabled={isStreaming}
-              rows={1}
-              className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 min-h-[40px] max-h-[200px] text-sm"
-            />
+            <Textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
+              placeholder="اكتب رسالتك إلى MiMo..." disabled={isStreaming} rows={1}
+              className="flex-1 resize-none border-0 bg-transparent focus-visible:ring-0 min-h-[40px] max-h-[200px] text-sm" />
             <ImageUpload onImageSelect={setImageData} disabled={isStreaming} />
-            <VoiceInput
-              onTranscript={(text) => setInput(prev => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)}
-              disabled={isStreaming}
-              active={voiceMode}
-              onActiveChange={setVoiceMode}
-            />
-            <Button
-              onClick={send}
-              disabled={(!input.trim() && !imageData) || isStreaming}
-              size="icon"
-              className="shrink-0 h-9 w-9 rounded-lg"
-            >
+            <VoiceInput onTranscript={(text) => setInput(prev => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + text)} disabled={isStreaming} active={voiceMode} onActiveChange={setVoiceMode} />
+            <Button onClick={send} disabled={(!input.trim() && !imageData) || isStreaming} size="icon" className="shrink-0 h-9 w-9 rounded-lg">
               {isStreaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>
           </div>
@@ -630,20 +451,12 @@ export function ChatPanel() {
             <div className="mt-2 flex items-center gap-2 p-1.5 rounded-md bg-muted/50">
               <img src={imageData} alt="مرفق" className="w-10 h-10 rounded object-cover" />
               <span className="text-xs text-muted-foreground">صورة مرفقة</span>
-              <Button size="icon" variant="ghost" className="h-6 w-6 mr-auto" onClick={() => setImageData(null)}>
-                ×
-              </Button>
+              <Button size="icon" variant="ghost" className="h-6 w-6 mr-auto" onClick={() => setImageData(null)}>×</Button>
             </div>
           )}
           <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              Enter للإرسال • Shift+Enter لسطر جديد
-            </span>
-            <span className="flex items-center gap-1">
-              <Cpu className="w-3 h-3" />
-              GLM-4.6 + Thinking
-            </span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Enter للإرسال • Shift+Enter لسطر جديد</span>
+            <span className="flex items-center gap-1"><Cpu className="w-3 h-3" /> MiMo Core Pipeline</span>
           </div>
         </div>
       </div>

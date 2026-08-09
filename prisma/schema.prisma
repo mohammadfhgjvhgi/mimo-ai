@@ -1,5 +1,7 @@
-// MiMo AI — Personal AI Agent System
-// Comprehensive schema for memory, knowledge graph, tasks, tools, traces
+// MiMo — Prisma Domain Schema
+// Phase 1: Database Foundation + Phase 116: Development Workspace
+// Based on architecture/MiMo_Domain_Model.md + architecture/MiMo_Data_Architecture.md
+// SQLite + Prisma — local-first, single-user
 
 generator client {
   provider = "prisma-client-js"
@@ -10,227 +12,441 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ═══════════════════════════════════════════════════════════════
-// USER PROFILE & PREFERENCES
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// Core Domain Entities
+// ════════════════════════════════════════════════════════════════
 
-model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  name          String?
-  avatar        String?
-  bio           String?
-  location      String?
-  occupation    String?
-  timezone      String   @default("Asia/Hebron")
-  language      String   @default("ar")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+/// A project is the ONLY container in MiMo (Product Bible Part 2.5).
+/// One per long-running effort. Each has accent, MIMO.md, scoped memory.
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  accent      String   @default("#7c3aed")
+  mimoMdPath  String?  // path to MIMO.md grounding file
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   conversations  Conversation[]
   memories       Memory[]
-  entities       Entity[]
-  relations      Relation[]
+  artifacts      Artifact[]
+  files          File[]
   tasks          Task[]
-  schedules      Schedule[]
-  traces         Trace[]
-  approvals      Approval[]
-  tools          ToolCall[]
-  apiKeys        ApiKey[]
-  preferences    Preference[]
-  skills         Skill[]
-  failures       FailureMemory[]
+  settings       ProjectSetting[]
 }
 
-model Preference {
-  id        String   @id @default(cuid())
-  userId    String
-  key       String   // e.g. "tone", "response_length", "language_style"
-  value     String   // JSON-encoded value
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, key])
-  @@index([userId])
-}
-
-model ApiKey {
-  id        String   @id @default(cuid())
-  userId    String
-  provider  String   // "openai", "anthropic", "google", "zai", "openrouter"
-  keyAlias  String   // human-readable alias
-  keyValue  String   // encrypted key (placeholder for demo)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// CONVERSATIONS & MESSAGES
-// ═══════════════════════════════════════════════════════════════
-
+/// A conversation is the permanent spine (Product Bible Part 2.6).
+/// Pinned tab #1, never deleted. Contains messages.
 model Conversation {
-  id          String    @id @default(cuid())
-  userId      String
-  title       String    @default("محادثة جديدة")
-  summary     String?   // auto-generated summary for context management
-  isArchived  Boolean   @default(false)
-  isPinned    Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  projectId String?
+  title     String   @default("محادثة جديدة")
+  pinned    Boolean  @default(false)
+  forkedFrom String?  // parent conversation ID if forked
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages    Message[]
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  messages Message[]
 
-  @@index([userId, updatedAt])
+  @@index([projectId])
 }
 
+/// A message within a conversation (user or AI).
 model Message {
-  id              String   @id @default(cuid())
-  conversationId  String
-  role            String   // "user" | "assistant" | "system" | "tool"
-  content         String   // markdown content
-  reasoning       String?  // chain-of-thought trace (if shown)
-  toolCalls       String?  // JSON array of tool calls made
-  tokenInput      Int      @default(0)
-  tokenOutput     Int      @default(0)
-  costUsd         Float    @default(0)
-  modelUsed       String?
-  status          String   @default("completed") // "pending", "streaming", "completed", "error"
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String   // 'user' | 'ai'
+  content        String
+  mode           String?  // chat/research/code/etc
+  model          String?  // which model was used
+  thinking       Boolean  @default(false)
+  research       Boolean  @default(false)
+  streaming      Boolean  @default(false)
+  error          String?
+  tokenCount     Int?
+  createdAt      DateTime @default(now())
 
-  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
-  @@index([conversationId, createdAt])
+  @@index([conversationId])
+  @@index([createdAt])
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MEMORY SYSTEM (7 types)
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// Memory (Product Bible Part 5)
+// ════════════════════════════════════════════════════════════════
 
+/// Memory entries — persisted. Two-layer: explicit saved + implicit reference.
+/// Every memory has: source, timestamp, type, confidence, delete.
+/// metadata: JSON-encoded Record<string, unknown> (Phase 116 fix: previously dropped).
 model Memory {
+  id          String   @id @default(cuid())
+  type        String   // fact | preference | event | relation | skill | goal
+  content     String
+  scope       String   @default("global") // 'global' | 'project' | 'conversation' | 'temporary'
+  projectId   String?
+  source      String   // 'user' | 'agent:<id>' | 'tool:<id>' | 'conversation:<id>'
+  confidence  Float    @default(0.5)
+  metadata    String?  // JSON-encoded Record<string, unknown>
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime? // soft delete
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([type, content, scope])
+  @@index([type])
+  @@index([projectId])
+  @@index([scope])
+  @@index([deletedAt])
+  @@index([createdAt])
+}
+
+// ════════════════════════════════════════════════════════════════
+// Knowledge Graph (Product Bible Part 6)
+// Phase 116: migrated from raw SQL to proper Prisma models so they
+// are under migration control and benefit from type-safe queries.
+// ════════════════════════════════════════════════════════════════
+
+/// A knowledge entity — a node in the personal knowledge graph.
+model KnowledgeEntity {
   id            String   @id @default(cuid())
-  userId        String
-  type          String   // "working", "short_term", "long_term", "episodic", "semantic", "procedural", "preference"
-  category      String?  // sub-category e.g. "fact", "skill", "event", "relationship"
-  content       String   // the memory content
-  summary       String?  // short summary for retrieval
-  embedding     String?  // JSON-encoded embedding vector (for semantic search)
-  source        String   @default("user") // "user", "agent", "extracted", "imported"
-  sourceMessageId String?
-  importance    Float    @default(0.5) // 0.0 - 1.0
-  confidence    Float    @default(0.8) // 0.0 - 1.0
-  accessCount   Int      @default(0)
-  lastAccessed  DateTime?
-  expiresAt     DateTime? // for short-term memory
-  metadata      String?  // JSON for extra fields
-  isArchived    Boolean  @default(false)
+  name          String
+  type          String   // person | project | technology | concept | place | organization | event | skill | goal | artifact
+  description   String?
+  confidence    Float    @default(0.5)
+  evidenceCount Int      @default(1)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, type])
-  @@index([userId, createdAt])
-  @@index([userId, importance])
+  @@index([type])
+  @@index([name])
 }
 
-// ═══════════════════════════════════════════════════════════════
-// KNOWLEDGE GRAPH — Entities & Relations
-// ═══════════════════════════════════════════════════════════════
-
-model Entity {
+/// A relationship between two knowledge entities — an edge in the graph.
+model KnowledgeRelationship {
   id          String   @id @default(cuid())
-  userId      String
-  name        String   // canonical name
-  type        String   // "person", "project", "technology", "place", "organization", "concept", "skill", "event"
-  description String?
-  aliases     String?  // JSON array of alternative names
-  properties  String?  // JSON object of key-value properties
-  sourceMemoryIds String? // JSON array of memory IDs that mention this entity
+  fromEntityId String
+  toEntityId   String
+  type        String   // related_to | depends_on | created | uses | part_of | knows | etc
+  confidence  Float    @default(0.5)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  relationsAsSubject Relation[] @relation("subjectRelations")
-  relationsAsObject  Relation[] @relation("objectRelations")
-
-  @@unique([userId, name, type])
-  @@index([userId, type])
-  @@index([userId, name])
+  @@unique([fromEntityId, toEntityId, type])
+  @@index([fromEntityId])
+  @@index([toEntityId])
+  @@index([type])
 }
 
-model Relation {
+// ════════════════════════════════════════════════════════════════
+// Artifacts (Product Bible Part 11)
+// ════════════════════════════════════════════════════════════════
+
+/// Artifacts are first-class objects (code/markdown/image/diagram/etc).
+model Artifact {
   id          String   @id @default(cuid())
-  userId      String
-  subjectId   String   // from entity
-  objectId    String   // to entity
-  type        String   // "works_on", "uses", "located_in", "knows", "created", "depends_on", "related_to"
-  strength    Float    @default(1.0) // 0.0 - 1.0
-  context     String?  // additional context
-  sourceMemoryId String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subject     Entity   @relation("subjectRelations", fields: [subjectId], references: [id], onDelete: Cascade)
-  object      Entity   @relation("objectRelations", fields: [objectId], references: [id], onDelete: Cascade)
-
-  @@unique([subjectId, objectId, type])
-  @@index([userId])
-  @@index([subjectId])
-  @@index([objectId])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// TASKS & PLANNING
-// ═══════════════════════════════════════════════════════════════
-
-model Task {
-  id          String   @id @default(cuid())
-  userId      String
-  parentId    String?  // for hierarchical tasks
+  type        String   // code | markdown | image | diagram | research | plan | etc
   title       String
-  description String?
-  status      String   @default("pending") // "pending", "in_progress", "completed", "failed", "blocked", "cancelled"
-  priority    String   @default("medium") // "low", "medium", "high", "critical"
-  category    String?  // "personal", "work", "learning", "project", "errand"
-  tags        String?  // JSON array
-  steps       String?  // JSON array of sub-steps with status
-  dueDate     DateTime?
-  scheduledAt DateTime?
-  completedAt DateTime?
-  relatedConversationId String?
-  relatedEntityIds String? // JSON array of entity IDs
-  progress    Float    @default(0.0) // 0.0 - 1.0
-  metadata    String?
+  content     String   // or path to external content
+  projectId   String?
+  provenance  String?  // conversation:agent:model that produced it
+  version     Int      @default(1)
+  parentId    String?  // previous version
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent      Task?    @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children    Task[]   @relation("TaskHierarchy")
-  approvals   Approval[]
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
-  @@index([userId, status])
-  @@index([userId, priority])
-  @@index([userId, dueDate])
-  @@index([parentId])
+  @@index([projectId])
+  @@index([type])
 }
 
-// ═══════════════════════════════════════════════════════════════
-// SCHEDULER & AUTOMATION
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// Tasks (Product Bible Part 2.7)
+// ════════════════════════════════════════════════════════════════
+
+/// A task is a unit of agent work within a conversation.
+model Task {
+  id             String   @id @default(cuid())
+  projectId      String?
+  conversationId String?
+  status         String   @default("pending") // pending|planning|executing|validating|done|error|cancelled
+  intent         String?
+  plan           String?  // JSON plan
+  progress       Float    @default(0)
+  agentId        String?
+  error          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  completedAt    DateTime?
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([status])
+}
+
+// ════════════════════════════════════════════════════════════════
+// Events (Product Bible Part 29 — audit log, append-only)
+// ════════════════════════════════════════════════════════════════
+
+/// Append-only event log. Every meaningful action is logged.
+/// Never deleted. Used for audit trail + observability.
+model EventLog {
+  id            String   @id @default(cuid())
+  type          String   // USER_MESSAGE_CREATED | AGENT_STARTED | etc
+  source        String   // which module emitted
+  payload       String   // JSON
+  correlationId String?
+  timestamp     DateTime @default(now())
+
+  @@index([type])
+  @@index([correlationId])
+  @@index([timestamp])
+}
+
+// ════════════════════════════════════════════════════════════════
+// Files (virtual FS scoped to project — legacy life-side files)
+// ════════════════════════════════════════════════════════════════
+
+model File {
+  id        String   @id @default(cuid())
+  projectId String?
+  name      String
+  path      String
+  size      Int?
+  mimeType  String?
+  content   String?  // text content (for small files)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+}
+
+// ════════════════════════════════════════════════════════════════
+// Project Settings
+// ════════════════════════════════════════════════════════════════
+
+model ProjectSetting {
+  id        String   @id @default(cuid())
+  projectId String
+  key       String
+  value     String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, key])
+  @@index([projectId])
+}
+
+// ════════════════════════════════════════════════════════════════
+// DEVELOPMENT WORKSPACE (Phase 116 — Built-in Project Sandbox)
+// ════════════════════════════════════════════════════════════════
+// A self-contained development environment inside MiMo. Each DevProject
+// is an isolated code project with files, build artifacts, test runs,
+// process tracking, snapshots, and per-project permissions. All
+// execution flows through RuntimeGateway → SandboxManager (never the
+// host directly).
+
+/// A development project — isolated workspace with sandboxed execution.
+model DevProject {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  /// Project type — drives build/test commands. Detected or set explicitly.
+  type        String   @default("generic") // nextjs | node | python | static | generic
+  /// Absolute path to the project root inside the sandbox root.
+  rootPath    String
+  /// Sandbox profile — controls filesystem/network/process limits.
+  profile     String   @default("standard") // safe | standard | development | networked | restricted
+  /// Default runtime — used by BuildSystem + TestRunner.
+  runtime     String   @default("node") // node | bun | python | static
+  /// Package manager used for install.
+  packageManager String @default("npm") // npm | yarn | pnpm | bun | pip
+  status      String   @default("idle") // idle | building | running | testing | error | archived
+  /// Last detected git branch (if any).
+  gitBranch   String?
+  /// Last build result summary.
+  lastBuild   String?  // JSON: { status, durationMs, errors, warnings, timestamp }
+  /// Last test result summary.
+  lastTest    String?  // JSON: { passed, failed, skipped, durationMs, timestamp }
+  /// Preview port (if running).
+  previewPort Int?
+  /// Environment variables as JSON: { KEY: { configured: bool, required: bool, status: 'configured'|'missing'|'invalid' } }
+  /// NEVER stores secret values — only status flags.
+  envStatus   String?  // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  archivedAt  DateTime?
+
+  files       DevFile[]
+  builds      DevBuild[]
+  testRuns    DevTestRun[]
+  logs        DevLog[]
+  snapshots   DevSnapshot[]
+  permissions DevPermission[]
+  processes   DevProcess[]
+
+  @@index([status])
+  @@index([type])
+}
+
+/// A file or directory inside a DevProject sandbox.
+/// Path is RELATIVE to the project root (validated against traversal).
+model DevFile {
+  id        String   @id @default(cuid())
+  projectId String
+  /// Relative path from project root — validated to reject '..' and absolute paths.
+  path      String
+  name      String
+  isDirectory Boolean @default(false)
+  size      Int      @default(0)
+  mimeType  String?
+  /// Content hash (sha256 hex) for change detection.
+  hash      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project DevProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+  @@index([projectId])
+  @@index([path])
+}
+
+/// A build run for a DevProject.
+model DevBuild {
+  id         String   @id @default(cuid())
+  projectId  String
+  status     String   @default("pending") // pending | running | success | failed | cancelled
+  command    String   // the build command that was run
+  output     String   @default("") // build log output (truncated)
+  errors     String?  // JSON array of error lines
+  warnings   String?  // JSON array of warning lines
+  durationMs Int?
+  exitCode   Int?
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+
+  project DevProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+/// A test run for a DevProject.
+model DevTestRun {
+  id         String   @id @default(cuid())
+  projectId  String
+  status     String   @default("pending") // pending | running | passed | failed | cancelled
+  command    String
+  passed     Int      @default(0)
+  failed     Int      @default(0)
+  skipped    Int      @default(0)
+  durationMs Int?
+  output     String   @default("")
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+
+  project DevProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+/// A log entry for a DevProject — build/runtime/terminal/test/agent/security/network.
+model DevLog {
+  id            String   @id @default(cuid())
+  projectId     String
+  /// Log channel.
+  channel       String   // build | runtime | terminal | test | agent | security | network
+  level         String   @default("info") // debug | info | warn | error
+  message       String
+  /// Process ID (if from a tracked process).
+  processId     String?
+  /// Correlation ID (for cross-referencing with EventLog).
+  correlationId String?
+  /// Sanitized metadata (no secrets — redacted before storage).
+  metadata      String?  // JSON
+  timestamp     DateTime @default(now())
+
+  project DevProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, channel])
+  @@index([level])
+  @@index([timestamp])
+}
+
+/// A tracked process running inside a DevProject sandbox.
+model DevProcess {
+  id         String   @id @default(cuid())
+  projectId  String
+  pid        Int?     // OS PID if available
+  command    String
+  status     String   @default("running") // running | exited | killed | crashed
+  exitCode   Int?
+  startedAt  DateTime @default(now())
+  finishedAt DateTime?
+
+  project DevProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])
+}
+
+/// A versioned snapshot of a DevProject (files + metadata).
+/// Used for snapshot/restore/clone.
+model DevSnapshot {
+  id         String   @id @default(cuid())
+  projectId  String
+  label      String
+  description String?
+  /// Absolute path to the snapshot archive (tar.gz) inside the snapshots dir.
+  archivePath String
+  /// SHA-256 of the archive (integrity check).
+  hash       String
+  /// File count at snapshot time.
+  fileCount  Int
+  /// Total size in bytes.
+  sizeBytes  Int
+  createdAt  DateTime @default(now())
+
+  project DevProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([createdAt])
+}
+
+/// A per-project permission grant. Default: DENY. Explicit grants only.
+model DevPermission {
+  id         String   @id @default(cuid())
+  projectId  String
+  /// Permission key (e.g., filesystem.read, process.execute, network.access).
+  permission String
+  /// Grant status: allow | deny | ask.
+  status     String   @default("ask")
+  /// Who granted it.
+  grantedBy  String   @default("user") // user | system
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project DevProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, permission])
+  @@index([projectId])
+}
+
+// ════════════════════════════════════════════════════════════════
+// SCHEDULER & AUTOMATION (from remote repo)
+// ════════════════════════════════════════════════════════════════
 
 model Schedule {
   id          String   @id @default(cuid())
-  userId      String
   name        String
   description String?
   prompt      String   // the prompt to execute at the scheduled time
@@ -245,18 +461,15 @@ model Schedule {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, isActive, nextRunAt])
+  @@index([isActive, nextRunAt])
 }
 
-// ═══════════════════════════════════════════════════════════════
-// TOOLS & TOOL CALLS
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// TOOLS & TOOL CALLS (observability)
+// ════════════════════════════════════════════════════════════════
 
 model ToolCall {
   id          String   @id @default(cuid())
-  userId      String
   traceId     String?
   toolName    String   // "web_search", "file_read", "task_create", etc.
   input       String   // JSON input args
@@ -271,17 +484,13 @@ model ToolCall {
   approvedAt  DateTime?
   createdAt   DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trace       Trace?   @relation(fields: [traceId], references: [id], onDelete: SetNull)
-
-  @@index([userId, toolName])
-  @@index([userId, createdAt])
+  @@index([toolName])
+  @@index([createdAt])
   @@index([traceId])
 }
 
 model Skill {
   id          String   @id @default(cuid())
-  userId      String
   name        String
   description String?
   category    String?  // "coding", "research", "writing", "automation"
@@ -294,24 +503,21 @@ model Skill {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, category])
+  @@index([category])
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // TRACES & OBSERVABILITY
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 model Trace {
   id          String   @id @default(cuid())
-  userId      String
   conversationId String?
   traceType   String   // "agent_run", "tool_chain", "memory_op", "kg_op"
   title       String
   description String?
   status      String   @default("pending") // "pending", "running", "completed", "failed"
-  steps       String?  // JSON array of step objects {step, action, result, duration, status}
+  steps       String?  // JSON array of step objects
   totalDurationMs Int  @default(0)
   totalTokens Int      @default(0)
   totalCostUsd Float   @default(0)
@@ -319,21 +525,17 @@ model Trace {
   metadata    String?
   createdAt   DateTime @default(now())
 
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  toolCalls   ToolCall[]
-
-  @@index([userId, createdAt])
-  @@index([userId, traceType])
+  @@index([createdAt])
+  @@index([traceType])
   @@index([conversationId])
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // APPROVALS (Human-in-the-Loop)
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
-model Approval {
+model ApprovalRequest {
   id          String   @id @default(cuid())
-  userId      String
   taskId      String?
   traceId     String?
   action      String   // description of action to approve
@@ -346,22 +548,17 @@ model Approval {
   expiresAt   DateTime?
   createdAt   DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  task        Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@index([userId, status])
+  @@index([status])
   @@index([taskId])
 }
 
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // FAILURE MEMORY (Reflexion Pattern — Self-Improvement)
 // Based on: arXiv:2509.25370 (ICML 2025) — "Where LLM Agents Fail"
-// Schema: task, attempted_plan, failure_point, error, root_cause, fix
-// ═══════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 model FailureMemory {
   id              String   @id @default(cuid())
-  userId          String
   traceId         String?
   conversationId  String?
   taskDescription String   // what was the user trying to do
@@ -377,9 +574,21 @@ model FailureMemory {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@index([userId, errorType])
+  @@index([createdAt])
+  @@index([errorType])
   @@index([traceId])
+}
+
+// ════════════════════════════════════════════════════════════════
+// PREFERENCES
+// ════════════════════════════════════════════════════════════════
+
+model Preference {
+  id        String   @id @default(cuid())
+  key       String   // e.g. "tone", "response_length", "language_style"
+  value     String   // JSON-encoded value
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([key])
 }

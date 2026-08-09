@@ -17,7 +17,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MiMo AI — مساعد ذكاء اصطناعي شخصي",
-  description: "نظام ذكاء اصطناعي شخصي يعمل كـ Agent مستقل مع ذاكرة دائمة، رسم معرفي، وأدوات قابلة للتوسعة.",
+  description:
+    "نظام ذكاء اصطناعي شخصي يعمل كـ Agent مستقل مع ذاكرة دائمة، رسم معرفي، وأدوات قابلة للتوسعة.",
   keywords: ["MiMo AI", "personal AI", "agent", "memory", "knowledge graph", "ذكاء اصطناعي"],
   authors: [{ name: "MiMo AI" }],
 };
@@ -29,6 +30,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans-arabic@5.0.0/index.css"
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >

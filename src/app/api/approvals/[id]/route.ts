@@ -1,49 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
-
 /**
- * PATCH /api/approvals/[id]
- * Body: { status: 'approved' | 'rejected' }
+ * MiMo OS — Approval actions API
+ * ------------------------------
+ * POST /api/approvals/[id]/approve  — resume the paused task (status → 'executing')
+ * POST /api/approvals/[id]/reject   — cancel the paused task (status → 'cancelled')
  */
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params
-  const body = await req.json()
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 
-  const approval = await db.approval.update({
-    where: { id },
-    data: {
-      status: body.status,
-      decidedAt: new Date(),
-      decidedBy: 'user',
-    },
-  })
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-  // If approved, activate related schedule if any
-  if (body.status === 'approved') {
-    const toolCall = await db.toolCall.findFirst({
-      where: { traceId: approval.traceId, toolName: 'schedule_create' },
-    })
-    if (toolCall) {
-      const input = JSON.parse(toolCall.input)
-      if (input.name) {
-        const schedule = await db.schedule.findFirst({
-          where: { name: input.name },
-        })
-        if (schedule) {
-          await db.schedule.update({
-            where: { id: schedule.id },
-            data: { isActive: true },
-          })
-        }
-      }
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = await req.json().catch(() => ({}));
+    const action = body.action as 'approve' | 'reject' | undefined;
+
+    if (action !== 'approve' && action !== 'reject') {
+      return NextResponse.json(
+        { error: 'required: action=approve|reject' },
+        { status: 400 },
+      );
     }
-  }
 
-  return NextResponse.json({ approval })
+    const newStatus = action === 'approve' ? 'executing' : 'cancelled';
+    const updated = await db.task.update({
+      where: { id },
+      data: {
+        status: newStatus,
+        completedAt: action === 'reject' ? new Date() : null,
+      },
+    });
+
+    return NextResponse.json({
+      id: updated.id,
+      status: updated.status,
+      updatedAt: updated.updatedAt.getTime(),
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'unknown';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
