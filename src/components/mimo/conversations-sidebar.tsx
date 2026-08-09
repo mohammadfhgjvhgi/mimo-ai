@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   Plus, MessageSquare, Trash2, Pin, Search,
-  Clock, X, MoreVertical,
+  Clock, X, MoreVertical, Sparkles,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,61 @@ interface ConversationItem {
 interface ConversationsSidebarProps {
   isOpen: boolean
   onClose: () => void
+}
+
+/**
+ * Strip markdown to plain text for preview
+ * Removes code blocks, inline code, headings, bold, italic, links
+ */
+function stripMarkdown(text: string): string {
+  if (!text) return ''
+  return text
+    .replace(/```[\s\S]*?```/g, '[كود]')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '[صورة]')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/^\s*>\s+/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function getPreview(conversation: ConversationItem): { preview: string; isUser: boolean } {
+  // Get the last message that's not empty
+  for (let i = conversation.messages.length - 1; i >= 0; i--) {
+    const msg = conversation.messages[i]
+    if (msg.content && msg.content.trim()) {
+      const stripped = stripMarkdown(msg.content)
+      if (stripped) {
+        return {
+          preview: stripped.slice(0, 120) + (stripped.length > 120 ? '...' : ''),
+          isUser: msg.role === 'user',
+        }
+      }
+    }
+  }
+  return { preview: 'محادثة فارغة', isUser: false }
+}
+
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  const diffHour = Math.floor(diffMin / 60)
+  const diffDay = Math.floor(diffHour / 24)
+
+  if (diffMin < 1) return 'الآن'
+  if (diffMin < 60) return `قبل ${diffMin} دقيقة`
+  if (diffHour < 24) return `قبل ${diffHour} ساعة`
+  if (diffDay < 7) return `قبل ${diffDay} يوم`
+  return date.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' })
 }
 
 export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarProps) {
@@ -118,7 +173,7 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
   const filtered = conversations.filter(c =>
     !search ||
     c.title.toLowerCase().includes(search.toLowerCase()) ||
-    (c.messages[0]?.content ?? '').toLowerCase().includes(search.toLowerCase())
+    c.messages.some(m => m.content.toLowerCase().includes(search.toLowerCase()))
   )
 
   if (!isOpen) return null
@@ -126,19 +181,23 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm md:hidden"
+        className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
         onClick={onClose}
       />
-      <aside className="fixed md:relative right-0 top-0 bottom-0 w-80 bg-card border-l border-border z-50 flex flex-col animate-slide-in-up">
+      <aside className="fixed right-0 top-0 bottom-0 w-80 bg-card border-l border-border z-50 flex flex-col shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-border">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-semibold">المحادثات</h3>
+            <Badge variant="secondary" className="text-[10px]">
+              {filtered.length}
+            </Badge>
           </div>
           <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleNew}>
-              <Plus className="w-4 h-4" />
+            <Button size="sm" variant="default" className="h-7 text-xs" onClick={handleNew}>
+              <Plus className="w-3.5 h-3.5 ml-1" />
+              جديدة
             </Button>
             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onClose}>
               <X className="w-4 h-4" />
@@ -163,74 +222,97 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
             {loading ? (
-              <p className="text-xs text-muted-foreground text-center py-4">جاري التحميل...</p>
-            ) : filtered.length === 0 ? (
               <div className="text-center py-8">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-12">
                 <MessageSquare className="w-10 h-10 mx-auto text-muted-foreground/50 mb-2" />
                 <p className="text-xs text-muted-foreground">
                   {search ? 'لا توجد نتائج' : 'لا توجد محادثات بعد'}
                 </p>
+                {!search && (
+                  <Button size="sm" variant="outline" className="mt-3 h-7 text-xs" onClick={handleNew}>
+                    <Plus className="w-3 h-3 ml-1" />
+                    ابدأ محادثة جديدة
+                  </Button>
+                )}
               </div>
             ) : (
               filtered.map((conv) => {
                 const isActive = conv.id === activeConversationId
-                const lastMsg = conv.messages[0]
+                const { preview, isUser } = getPreview(conv)
                 return (
                   <div
                     key={conv.id}
                     onClick={() => handleSelect(conv.id)}
                     className={cn(
-                      'group p-2.5 rounded-lg cursor-pointer transition-colors',
-                      isActive ? 'bg-accent border border-primary/30' : 'hover:bg-accent/50 border border-transparent'
+                      'group p-2.5 rounded-lg cursor-pointer transition-all border',
+                      isActive
+                        ? 'bg-accent border-primary/40 shadow-sm'
+                        : 'hover:bg-accent/50 border-transparent'
                     )}
                   >
                     <div className="flex items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 mb-0.5">
-                          {conv.isPinned && <Pin className="w-3 h-3 text-primary shrink-0" />}
-                          <h4 className="text-xs font-medium truncate flex-1">{conv.title}</h4>
-                        </div>
-                        {lastMsg && (
-                          <p className="text-[10px] text-muted-foreground line-clamp-2 mb-1">
-                            {lastMsg.content}
-                          </p>
+                      <div className={cn(
+                        'w-7 h-7 rounded-md flex items-center justify-center shrink-0',
+                        isActive ? 'mimo-gradient' : 'bg-muted'
+                      )}>
+                        {conv.isPinned ? (
+                          <Pin className={cn('w-3 h-3', isActive ? 'text-white' : 'text-primary')} />
+                        ) : (
+                          <MessageSquare className={cn('w-3 h-3', isActive ? 'text-white' : 'text-muted-foreground')} />
                         )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {/* Title */}
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <h4 className="text-xs font-medium truncate flex-1">{conv.title}</h4>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                onClick={(e) => e.stopPropagation()}
+                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-accent transition-opacity"
+                              >
+                                <MoreVertical className="w-3 h-3" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem onClick={(e) => handleTogglePin(conv.id, conv.isPinned, e as any)}>
+                                <Pin className="w-3 h-3 ml-2" />
+                                {conv.isPinned ? 'إلغاء التثبيت' : 'تثبيت'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => handleDelete(conv.id, e as any)}
+                                className="text-rose-600 focus:text-rose-700"
+                              >
+                                <Trash2 className="w-3 h-3 ml-2" />
+                                حذف
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        {/* Preview — single line, muted */}
+                        <p className="text-[10px] text-muted-foreground line-clamp-1 mb-1" dir="auto">
+                          {isUser && <span className="text-primary/70">أنت: </span>}
+                          {preview}
+                        </p>
+                        {/* Meta */}
                         <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
                           <span className="flex items-center gap-0.5">
                             <Clock className="w-2.5 h-2.5" />
-                            {new Date(conv.updatedAt).toLocaleString('ar-EG', {
-                              month: 'short', day: 'numeric',
-                              hour: '2-digit', minute: '2-digit',
-                            })}
+                            {formatRelativeTime(conv.updatedAt)}
                           </span>
                           <span>•</span>
                           <span>{conv._count.messages} رسالة</span>
+                          {conv.isPinned && (
+                            <>
+                              <span>•</span>
+                              <span className="text-primary">مثبّتة</span>
+                            </>
+                          )}
                         </div>
                       </div>
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            onClick={(e) => e.stopPropagation()}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-accent transition-opacity"
-                          >
-                            <MoreVertical className="w-3 h-3" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          <DropdownMenuItem onClick={(e) => handleTogglePin(conv.id, conv.isPinned, e as any)}>
-                            <Pin className="w-3 h-3 ml-2" />
-                            {conv.isPinned ? 'إلغاء التثبيت' : 'تثبيت'}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => handleDelete(conv.id, e as any)}
-                            className="text-rose-600 focus:text-rose-700"
-                          >
-                            <Trash2 className="w-3 h-3 ml-2" />
-                            حذف
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </div>
                   </div>
                 )
@@ -238,7 +320,18 @@ export function ConversationsSidebar({ isOpen, onClose }: ConversationsSidebarPr
             )}
           </div>
         </ScrollArea>
+
+        {/* Footer */}
+        <div className="p-2 border-t border-border">
+          <Button size="sm" variant="outline" className="w-full h-8 text-xs" onClick={handleNew}>
+            <Plus className="w-3.5 h-3.5 ml-1" />
+            محادثة جديدة
+          </Button>
+        </div>
       </aside>
     </>
   )
 }
+
+// Import Badge at the top level
+import { Badge } from '@/components/ui/badge'

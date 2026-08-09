@@ -22,6 +22,8 @@ import { db } from '@/lib/db'
 import { searchMemory, saveMemory, type MemorySearchResult } from '@/lib/ai/memory'
 import { extractAndSave } from '@/lib/ai/knowledge'
 import { executeTool, TOOLS } from '@/lib/ai/tools'
+import { recordFailure, generateReflection, retrieveSimilarFailures } from '@/lib/ai/reflexion'
+import { circuitBreaker, retryWithBackoff } from '@/lib/ai/reliability'
 
 const ZAI_MODULE = await import('z-ai-web-dev-sdk')
 const ZAI = ZAI_MODULE.default
@@ -368,6 +370,17 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
       timestamp: new Date(),
     })
 
+    // STEP 1b: Retrieve similar past failures (Reflexion pattern)
+    const pastFailures = await retrieveSimilarFailures(userId, userMessage, 2)
+    if (pastFailures.length > 0) {
+      emit({
+        type: 'memory_op',
+        content: `تم استرجاع ${pastFailures.length} فشل سابق مشابه (Reflexion)`,
+        status: 'success',
+        timestamp: new Date(),
+      })
+    }
+
     // STEP 2: Build system prompt
     const systemPrompt = await buildSystemPrompt(userId, retrievedMemories)
 
@@ -551,6 +564,30 @@ export async function runAgentLoop(options: AgentRunOptions): Promise<AgentRunRe
       status: 'error',
       timestamp: new Date(),
     })
+
+    // Record failure in FailureMemory (Reflexion pattern)
+    try {
+      const failureId = await recordFailure(userId, {
+        taskDescription: userMessage,
+        attemptedPlan: JSON.stringify(steps.map(s => ({ type: s.type, content: s.content.slice(0, 100) }))),
+        failurePoint: steps.length > 0 ? `الخطوة ${steps.length}` : 'البداية',
+        errorMessage: error.message,
+        traceId: trace.id,
+        conversationId,
+      })
+
+      // Generate reflection (root cause + proposed fix) — async, don't block
+      generateReflection(failureId).catch(() => {})
+
+      emit({
+        type: 'memory_op',
+        content: `تم تسجيل الفشل في ذاكرة الأخطاء (Reflexion) — سيتم تجنبه في المستقبل`,
+        status: 'success',
+        timestamp: new Date(),
+      })
+    } catch {
+      // ignore recording errors
+    }
 
     await db.trace.update({
       where: { id: trace.id },

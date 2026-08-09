@@ -12,12 +12,12 @@ import {
   MessageSquare, Mic, Image as ImageIcon, Volume2,
   FileText, Globe, Search, Copy,
   Terminal, Calculator, ClipboardList, Share2, BarChart3,
+  Cpu, Eye, Code2,
 } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ConversationsSidebar } from '@/components/mimo/conversations-sidebar'
 import { VoiceInput } from '@/components/mimo/voice-input'
 import { ImageUpload } from '@/components/mimo/image-upload'
@@ -71,7 +71,10 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
   const hasSteps = (message.liveSteps?.length ?? 0) > 0
   const hasThinking = (message.thinkingContent?.length ?? 0) > 0
-  const [showDetails, setShowDetails] = useState(false)
+  // Auto-expand details while streaming (initial state only)
+  const [showDetails, setShowDetails] = useState(
+    message.status === 'streaming' && (hasSteps || hasThinking)
+  )
 
   return (
     <div className={cn('flex gap-3 animate-slide-in-up', isUser && 'flex-row-reverse')}>
@@ -94,12 +97,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           {(hasSteps || hasThinking) && (
             <button
               onClick={() => setShowDetails(!showDetails)}
-              className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-accent/50"
+              className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-accent/50 transition-colors"
             >
               {showDetails ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
-              {hasSteps && <span>{message.liveSteps!.length} خطوات</span>}
-              {hasThinking && hasSteps && <span>•</span>}
-              {hasThinking && <span>تفكير</span>}
+              {hasThinking && <span className="flex items-center gap-0.5"><Lightbulb className="w-2.5 h-2.5 text-amber-500" /> تفكير</span>}
+              {hasSteps && <span className="flex items-center gap-0.5"><Activity className="w-2.5 h-2.5 text-sky-500" /> {message.liveSteps!.length}</span>}
             </button>
           )}
         </div>
@@ -183,7 +185,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             {message.tokensUsed ? (
               <Badge variant="outline" className="text-[9px] py-0 h-4">
                 <Zap className="w-2.5 h-2.5 ml-0.5" />
-                {message.tokensUsed} tok
+                {message.tokensUsed}
               </Badge>
             ) : null}
             {message.durationMs ? (
@@ -639,8 +641,8 @@ export function ChatPanel() {
               Enter للإرسال • Shift+Enter لسطر جديد
             </span>
             <span className="flex items-center gap-1">
-              <Zap className="w-3 h-3" />
-              GLM-4.6
+              <Cpu className="w-3 h-3" />
+              GLM-4.6 + Thinking
             </span>
           </div>
         </div>

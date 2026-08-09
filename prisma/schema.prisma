@@ -39,6 +39,7 @@ model User {
   apiKeys        ApiKey[]
   preferences    Preference[]
   skills         Skill[]
+  failures       FailureMemory[]
 }
 
 model Preference {
@@ -350,4 +351,35 @@ model Approval {
 
   @@index([userId, status])
   @@index([taskId])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FAILURE MEMORY (Reflexion Pattern — Self-Improvement)
+// Based on: arXiv:2509.25370 (ICML 2025) — "Where LLM Agents Fail"
+// Schema: task, attempted_plan, failure_point, error, root_cause, fix
+// ═══════════════════════════════════════════════════════════════
+
+model FailureMemory {
+  id              String   @id @default(cuid())
+  userId          String
+  traceId         String?
+  conversationId  String?
+  taskDescription String   // what was the user trying to do
+  attemptedPlan   String?  // JSON: steps the agent tried
+  failurePoint    String?  // which step failed
+  errorType       String?  // from taxonomy: arithmetic, logical, hallucination, plan_omission, tool_error
+  errorMessage    String?  // raw error message
+  rootCauseAnalysis String? // LLM-generated root cause
+  proposedFix     String?  // LLM-generated fix
+  appliedFix      Boolean  @default(false) // was the fix applied successfully?
+  embedding       String?  // for semantic retrieval
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, errorType])
+  @@index([traceId])
 }
