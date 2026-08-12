@@ -3,6 +3,20 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Explicitly limit content scanning to src/ only — prevents Tailwind from
+   scanning research-export/upload/download folders which contain huge HTML
+   that bloats the CSS bundle and crashes Turbopack's RSC streaming. */
+@source "../components/**/*.{js,ts,jsx,tsx}";
+@source "../app/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../lib/**/*.{js,ts,tsx}";
+@source not "../../research-export";
+@source not "../../upload";
+@source not "../../download";
+@source not "../../tool-results";
+@source not "../../skills";
+@source not "../../mini-services";
+@source not "../../examples";
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

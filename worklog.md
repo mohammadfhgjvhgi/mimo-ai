@@ -1,0 +1,103 @@
+---
+Task ID: MiMo-AI-Platform-Build
+Agent: Z.ai Code (Principal AI Systems Architect)
+Task: Build MiMo AI Engineering Intelligence Platform — autonomous multi-agent AI engineering system
+
+Work Log:
+- Discovery phase: inspected existing project (Next.js 16 + TypeScript 5 + Tailwind 4 + shadcn/ui + Prisma + z-ai-web-dev-sdk)
+- Reviewed 3901 research files in research-export/ (10 ADRs, 64 knowledge docs, 49 AI skills, 54 AI tools documented)
+- Reviewed MiMo v2 architecture (15-layer design) as reference
+- Designed Prisma schema with 10 models: Conversation, Message, Task, AgentActivity, Artifact, Memory (9 types), Decision, ExecutionLog, KnowledgeEntry
+- Pushed schema to SQLite database successfully
+- Built AI Core (src/lib/ai/):
+  - types.ts — all shared TypeScript types
+  - model.ts — ZAI client wrapper (chat, chatStream, generateStructured, invokeFunction)
+  - memory.ts — DB-backed memory store with 9 types, keyword search, consolidation
+  - context.ts — context assembly (history + memories + agent prompt, 60k char limit)
+  - agents/index.ts — 10 specialized agents (orchestrator, researcher, planner, developer, debugger, qa, security, reviewer, documentation, knowledge) with rich system prompts
+  - tools/index.ts — 6 real tools (web_search, web_reader, file_read, file_write, memory_store, knowledge_search) using z-ai-web-dev-sdk
+  - skills/index.ts — skill registry reading from /skills folder (69 skills loaded)
+  - runtime.ts — execution runtime with executeTask (single task) + runAutonomousLoop (multi-task mission)
+- Built 9 API routes (src/app/api/):
+  - chat/route.ts — POST SSE streaming chat
+  - agents/route.ts — GET 10 agents
+  - skills/route.ts — GET 69 skills with search
+  - conversations/route.ts + [id]/route.ts — CRUD
+  - tasks/route.ts — GET/POST tasks
+  - artifacts/route.ts — GET artifacts
+  - memory/route.ts — GET/POST memory
+  - decisions/route.ts — GET decisions
+  - state/route.ts — GET system state (counts + recent executions)
+- Built Frontend (src/components/mimo/):
+  - workspace.tsx — main layout with 8 panels
+  - sidebar.tsx — conversations list + system state
+  - chat-panel.tsx — streaming chat with agent selector + autonomous toggle
+  - tasks-panel.tsx — task DAG with progress
+  - agents-panel.tsx — 10 agents with active indicators
+  - artifacts-panel.tsx — artifacts with detail dialog
+  - memory-panel.tsx — 9 memory types
+  - decisions-panel.tsx — ADR records
+  - timeline-panel.tsx — execution logs
+  - skills-panel.tsx — 69 skills with search
+- Created Zustand store (src/lib/mimo-store.ts) for client state + SSE event handling
+- Created client types (src/lib/ai-client.ts)
+- Fixed CSS parsing error by adding @source directives to globals.css (prevented Tailwind from scanning research-export folder which crashed Turbopack)
+- Fixed ESLint error in chat-panel.tsx (component creation during render)
+- Added research-export/, upload/, download/, tool-results/, skills/, mini-services/, examples/ to eslint ignores
+- Updated page.tsx to render Workspace component
+- Updated layout.tsx metadata for MiMo AI
+- Verified with agent-browser: page renders, all 8 panels visible, 10 agents listed, chat API works with SSE streaming, conversations persist to DB
+- All API endpoints tested: /api/agents (10 agents), /api/skills (69 skills), /api/state (counts), /api/chat (SSE stream with start/agent/end events)
+
+Stage Summary:
+- ✅ Full-stack MiMo AI Engineering Intelligence Platform built and operational
+- ✅ 10 specialized agents with rich system prompts (orchestrator, researcher, planner, developer, debugger, qa, security, reviewer, documentation, knowledge)
+- ✅ 6 real tools using z-ai-web-dev-sdk (web_search, web_reader, file_read, file_write, memory_store, knowledge_search)
+- ✅ 69 AI skills auto-loaded from /skills folder
+- ✅ Autonomous execution loop: orchestrator plans → tasks execute in order → artifacts + memories + decisions logged
+- ✅ Real-time SSE streaming for chat responses
+- ✅ 9-type memory system (working, short_term, long_term, episodic, semantic, procedural, preference, failure, skill)
+- ✅ Beautiful workspace UI with 8 panels (Chat, Tasks, Agents, Artifacts, Memory, Decisions, Timeline, Skills)
+- ✅ Prisma schema with 10 models, SQLite database
+- ✅ Clean lint, no errors
+- ✅ Agent browser verification: page renders correctly, all features functional
+- Known limitation: dev server process is killed by sandbox between bash sessions (not a code issue); must restart with `bun run dev` or `./node_modules/.bin/next dev -p 3000`
+- Architecture follows ADRs from mimo-v2 research: Model Gateway (ADR-001), Context Management (ADR-007), Non-Bypassable Tool Registry, Autonomous Execution Loop
+
+Files created:
+- prisma/schema.prisma (updated — 10 models)
+- src/lib/ai/types.ts
+- src/lib/ai/model.ts
+- src/lib/ai/memory.ts
+- src/lib/ai/context.ts
+- src/lib/ai/agents/index.ts
+- src/lib/ai/tools/index.ts
+- src/lib/ai/skills/index.ts
+- src/lib/ai/runtime.ts
+- src/lib/ai-client.ts
+- src/lib/mimo-store.ts
+- src/components/mimo/workspace.tsx
+- src/components/mimo/sidebar.tsx
+- src/components/mimo/chat-panel.tsx
+- src/components/mimo/tasks-panel.tsx
+- src/components/mimo/agents-panel.tsx
+- src/components/mimo/artifacts-panel.tsx
+- src/components/mimo/memory-panel.tsx
+- src/components/mimo/decisions-panel.tsx
+- src/components/mimo/timeline-panel.tsx
+- src/components/mimo/skills-panel.tsx
+- src/components/mimo/agent-icons.ts
+- src/app/api/chat/route.ts
+- src/app/api/agents/route.ts
+- src/app/api/skills/route.ts
+- src/app/api/conversations/route.ts
+- src/app/api/conversations/[id]/route.ts
+- src/app/api/tasks/route.ts
+- src/app/api/artifacts/route.ts
+- src/app/api/memory/route.ts
+- src/app/api/decisions/route.ts
+- src/app/api/state/route.ts
+- src/app/page.tsx (updated)
+- src/app/layout.tsx (updated metadata)
+- src/app/globals.css (added @source directives)
+- eslint.config.mjs (added ignores)

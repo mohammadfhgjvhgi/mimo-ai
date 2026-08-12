@@ -1,8 +1,9 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// ===================================================================
+// MiMo AI Engineering Intelligence Platform — Prisma Schema
+// ===================================================================
+// Core models for: Conversations, Messages, Tasks, Agents, Tools,
+// Skills, Artifacts, Memories, Decisions, ExecutionLogs, KnowledgeEntries
+// ===================================================================
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +14,213 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ─── Conversations & Messages ───────────────────────────────────────
+
+model Conversation {
+  id          String    @id @default(cuid())
+  title       String    @default("New Conversation")
+  goal        String?   // user-defined goal for the conversation
+  status      String    @default("active") // active | paused | completed | archived
+  autonomous  Boolean   @default(false) // autonomous build mode toggle
+  projectType String?   // software | hardware | iot | research | business | other
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  messages    Message[]
+  tasks       Task[]
+  artifacts   Artifact[]
+  decisions   Decision[]
+  executions  ExecutionLog[]
+  memories    Memory[]
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Message {
+  id              String       @id @default(cuid())
+  conversationId  String
+  role            String       // user | assistant | system | tool
+  content         String
+  agentName       String?      // which agent produced this (if assistant)
+  toolName        String?      // which tool produced this (if tool)
+  toolCallId      String?
+  tokenInput      Int          @default(0)
+  tokenOutput     Int          @default(0)
+  durationMs      Int          @default(0)
+  createdAt       DateTime     @default(now())
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([role])
+}
+
+// ─── Tasks & Planning ───────────────────────────────────────────────
+
+model Task {
+  id              String        @id @default(cuid())
+  conversationId  String
+  parentId        String?       // for task DAG / sub-tasks
+  title           String
+  description     String?
+  objective       String?
+  assignedAgent   String?       // orchestrator | researcher | planner | developer | ...
+  status          String        @default("pending") // pending | planning | in_progress | blocked | validating | completed | failed
+  priority        Int           @default(5) // 1 (low) → 10 (critical)
+  dependencies    String?       // JSON array of task IDs
+  inputs          String?       // JSON: required inputs
+  expectedOutput  String?
+  validationRules String?       // JSON: validation criteria
+  failurePolicy   String        @default("retry") // retry | skip | abort | escalate
+  retryCount      Int           @default(0)
+  maxRetries      Int           @default(3)
+  completionNotes String?
+  order           Int           @default(0) // execution order
+  createdAt       DateTime      @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  updatedAt       DateTime      @updatedAt
+  conversation    Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  executions      ExecutionLog[]
+  artifacts       Artifact[]
+
+  @@index([conversationId])
+  @@index([status])
+  @@index([assignedAgent])
+}
+
+// ─── Agents ─────────────────────────────────────────────────────────
+// Static agent definitions are in src/lib/ai/agents/index.ts
+// This model tracks agent runtime activity per conversation.
+
+model AgentActivity {
+  id              String       @id @default(cuid())
+  conversationId  String
+  agentName       String       // orchestrator | researcher | planner | developer | ...
+  taskId          String?
+  status          String       @default("idle") // idle | thinking | planning | executing | waiting | done | error
+  currentAction   String?      // human-readable current action
+  toolsUsed       String?      // JSON array of tool names
+  message         String?      // status message / progress
+  startedAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  completedAt     DateTime?
+
+  @@index([conversationId])
+  @@index([agentName])
+  @@index([status])
+}
+
+// ─── Artifacts ──────────────────────────────────────────────────────
+
+model Artifact {
+  id              String       @id @default(cuid())
+  conversationId  String
+  taskId          String?
+  name            String
+  type            String       // code | document | research_report | architecture_diagram | test_report | config | plan | dataset | other
+  format          String       @default("markdown") // markdown | json | typescript | python | text | html | svg
+  content         String
+  summary         String?
+  filePath        String?      // if persisted to disk
+  sizeBytes       Int          @default(0)
+  tags            String?      // JSON array of tags
+  version         Int          @default(1)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  task            Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@index([type])
+}
+
+// ─── Memory ─────────────────────────────────────────────────────────
+// 7 types: working, short_term, long_term, episodic, semantic, procedural, preference, failure, skill
+
+model Memory {
+  id              String        @id @default(cuid())
+  conversationId  String?
+  type            String        // working | short_term | long_term | episodic | semantic | procedural | preference | failure | skill
+  content         String
+  summary         String?
+  importance      Float         @default(0.5) // 0.0 → 1.0
+  confidence      Float         @default(0.8)
+  source          String        @default("system") // user | system | agent | tool | research
+  scope           String        @default("global") // global | conversation | project
+  tags            String?       // JSON array
+  relatedMemories String?       // JSON array of memory IDs
+  expiresAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  accessedAt      DateTime?
+  accessCount     Int           @default(0)
+  conversation    Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([conversationId])
+  @@index([scope])
+}
+
+// ─── Decisions (Architecture Decision Records, runtime) ─────────────
+
+model Decision {
+  id              String       @id @default(cuid())
+  conversationId  String
+  title           String
+  context         String       // why this decision is needed
+  decision        String       // what was decided
+  reasoning       String?      // why
+  alternatives    String?      // JSON array of alternatives considered
+  consequences    String?      // JSON: positive + negative
+  relatedTasks    String?      // JSON array of task IDs
+  relatedFiles    String?      // JSON array of file paths
+  status          String       @default("proposed") // proposed | accepted | rejected | superseded
+  decidedBy       String       @default("system") // user | orchestrator | architect
+  createdAt       DateTime     @default(now())
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([status])
+}
+
+// ─── Execution Logs (observability) ─────────────────────────────────
+
+model ExecutionLog {
+  id              String        @id @default(cuid())
+  conversationId  String
+  taskId          String?
+  agentName       String?
+  toolName        String?
+  phase           String        // plan | execute | observe | validate | repair | retest | review | complete
+  level           String        @default("info") // debug | info | warn | error | critical
+  message         String
+  details         String?       // JSON: structured details
+  durationMs      Int           @default(0)
+  status          String        @default("success") // success | failure | partial | skipped
+  createdAt       DateTime      @default(now())
+  conversation    Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  task            Task?         @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@index([taskId])
+  @@index([agentName])
+  @@index([level])
+}
+
+// ─── Knowledge Entries (document intelligence) ──────────────────────
+
+model KnowledgeEntry {
+  id              String   @id @default(cuid())
+  source          String   // file | url | research | user
+  sourcePath      String?  // file path or URL
+  title           String
+  content         String
+  summary         String?
+  category        String?  // architecture | research | skill | code | spec | other
+  tags            String?  // JSON array
+  entities        String?  // JSON: extracted entities
+  chunkCount      Int      @default(1)
+  createdAt       DateTime @default(now())
+  accessedAt      DateTime?
+  accessCount     Int      @default(0)
+
+  @@index([category])
+  @@index([source])
 }
