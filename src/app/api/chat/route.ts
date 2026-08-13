@@ -40,6 +40,15 @@ export async function POST(req: NextRequest) {
     maxTokens?: number;
   };
 
+  // P-fix: Body size limit — reject requests over 1MB to prevent memory exhaustion
+  const contentLength = req.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > 1_000_000) {
+    return NextResponse.json(
+      { error: "Request body too large (max 1MB)" },
+      { status: 413 }
+    );
+  }
+
   try {
     body = await req.json();
   } catch {

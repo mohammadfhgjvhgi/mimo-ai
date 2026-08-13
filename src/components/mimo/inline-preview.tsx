@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Eye, RefreshCw, ExternalLink, Code2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getLanguage } from "@/lib/file-utils";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import ReactMarkdown from "react-markdown";
@@ -25,23 +26,7 @@ function detectFormat(name?: string, url?: string): "html" | "markdown" | "json"
   return "text";
 }
 
-function getLanguage(name?: string): string {
-  const ext = (name ?? "").split(".").pop()?.toLowerCase();
-  const map: Record<string, string> = {
-    ts: "typescript",
-    tsx: "tsx",
-    js: "javascript",
-    jsx: "jsx",
-    py: "python",
-    json: "json",
-    html: "html",
-    css: "css",
-    sql: "sql",
-    md: "markdown",
-    prisma: "prisma",
-  };
-  return map[ext ?? ""] ?? "text";
-}
+// P-fix: getLanguage now imported from @/lib/file-utils
 
 function JsonViewer({ data }: { data: string }) {
   let parsed: unknown;
@@ -209,7 +194,7 @@ export function InlinePreview({ url, name, maxHeight = "400px", format }: Inline
           {/* Code — syntax highlighted */}
           {isCode && codeContent && (
             <SyntaxHighlighter
-              language={getLanguage(name)}
+              language={getLanguage(name ?? "")}
               style={oneDark}
               customStyle={{
                 margin: 0,

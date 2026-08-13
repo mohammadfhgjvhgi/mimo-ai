@@ -9,7 +9,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { File as FileIcon, FileCode, FileText, X, Paperclip } from "lucide-react";
+import { X, Paperclip } from "lucide-react";
+import { getFileIcon } from "@/lib/file-utils";
 import { cn } from "@/lib/utils";
 
 interface TreeNode {
@@ -24,16 +25,7 @@ export interface AttachedFile {
   size: number;
 }
 
-function getFileIcon(name: string) {
-  const ext = name.split(".").pop()?.toLowerCase();
-  if (["ts", "tsx", "js", "jsx", "py", "json", "html", "css", "sql", "prisma"].includes(ext ?? "")) {
-    return FileCode;
-  }
-  if (["md", "txt"].includes(ext ?? "")) {
-    return FileText;
-  }
-  return FileIcon;
-}
+// P-fix: getFileIcon now imported from @/lib/file-utils
 
 /**
  * Hook: manages @-mention state + file attachment.

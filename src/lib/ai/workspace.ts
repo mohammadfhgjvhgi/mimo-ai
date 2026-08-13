@@ -790,7 +790,7 @@ export async function ensureWorkspaceDirs(): Promise<void> {
  * Project existence is a separate concern handled by the caller (the runtime
  * looks up Conversation.projectId, which is a validated FK to Project).
  */
-const SAFE_PROJECT_ID_REGEX = /^c[a-z0-9]{20,31}$/;
+export const SAFE_PROJECT_ID_REGEX = /^c[a-z0-9]{20,31}$/;
 
 /**
  * Returns true if the projectId is SAFE to use in a filesystem path.

@@ -86,10 +86,10 @@ export async function POST(
         projectId: existing.projectId,
       },
     });
-    // Copy messages
-    for (const msg of existing.messages) {
-      await db.message.create({
-        data: {
+    // P-fix: use createMany (single query) instead of N sequential creates
+    if (existing.messages.length > 0) {
+      await db.message.createMany({
+        data: existing.messages.map((msg) => ({
           conversationId: dup.id,
           role: msg.role,
           content: msg.content,
@@ -97,7 +97,7 @@ export async function POST(
           tokenInput: msg.tokenInput,
           tokenOutput: msg.tokenOutput,
           durationMs: msg.durationMs,
-        },
+        })),
       });
     }
     return NextResponse.json({ conversation: dup });
@@ -128,9 +128,10 @@ export async function POST(
       : sorted.length;
     const messages = cutoffIndex >= 0 ? sorted.slice(0, cutoffIndex) : sorted;
 
-    for (const msg of messages) {
-      await db.message.create({
-        data: {
+    // P-fix: use createMany (single query) instead of N sequential creates
+    if (messages.length > 0) {
+      await db.message.createMany({
+        data: messages.map((msg) => ({
           conversationId: branch.id,
           role: msg.role,
           content: msg.content,
@@ -138,7 +139,7 @@ export async function POST(
           tokenInput: msg.tokenInput,
           tokenOutput: msg.tokenOutput,
           durationMs: msg.durationMs,
-        },
+        })),
       });
     }
     return NextResponse.json({ conversation: branch });

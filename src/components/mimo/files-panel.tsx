@@ -11,8 +11,6 @@ import {
   ChevronRight,
   ChevronDown,
   RefreshCw,
-  FileCode,
-  FileText,
   Eye,
   Code2,
   Save,
@@ -23,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import { getLanguage, getFileIcon } from "@/lib/file-utils";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
@@ -85,34 +84,8 @@ function buildTree(files: TreeNode[]): FileTreeGroup[] {
   return root;
 }
 
-function getFileIcon(name: string) {
-  const ext = name.split(".").pop()?.toLowerCase();
-  if (["ts", "tsx", "js", "jsx", "py", "json", "html", "css", "sql", "prisma"].includes(ext ?? "")) {
-    return FileCode;
-  }
-  if (["md", "txt"].includes(ext ?? "")) {
-    return FileText;
-  }
-  return FileIcon;
-}
-
-function getLanguage(name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase();
-  const map: Record<string, string> = {
-    ts: "typescript",
-    tsx: "tsx",
-    js: "javascript",
-    jsx: "jsx",
-    py: "python",
-    json: "json",
-    html: "html",
-    css: "css",
-    sql: "sql",
-    md: "markdown",
-    prisma: "prisma",
-  };
-  return map[ext ?? ""] ?? "text";
-}
+// P-fix: getFileIcon and getLanguage now imported from shared @/lib/file-utils
+// (was duplicated in 4 files with drift)
 
 // ─── Tree Node Component ────────────────────────────────────────────
 

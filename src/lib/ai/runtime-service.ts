@@ -15,9 +15,22 @@
 //   - Timeout prevents hanging processes
 // ===================================================================
 
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import path from "path";
-import { PROJECTS_ROOT } from "./workspace";
+import { PROJECTS_ROOT, SAFE_PROJECT_ID_REGEX } from "./workspace";
+
+// P-fix: detect available JS runtime once at module load
+let _cachedRuntime: "bun" | "npx" | null = null;
+function detectRuntime(): "bun" | "npx" {
+  if (_cachedRuntime) return _cachedRuntime;
+  try {
+    const result = spawnSync("bun", ["--version"], { stdio: "ignore", shell: false });
+    _cachedRuntime = result.status === 0 ? "bun" : "npx";
+  } catch {
+    _cachedRuntime = "npx";
+  }
+  return _cachedRuntime;
+}
 
 export interface BuildResult {
   success: boolean;
@@ -46,8 +59,7 @@ const DEFAULT_TIMEOUT = 60000; // 60 seconds
  * Validates projectId format to prevent path traversal.
  */
 function getProjectDir(projectId: string): string {
-  // Reuse the same regex as WorkspaceService
-  const SAFE_PROJECT_ID_REGEX = /^c[a-z0-9]{20,31}$/;
+  // P-fix: reuse SAFE_PROJECT_ID_REGEX from workspace.ts (was duplicated)
   if (!SAFE_PROJECT_ID_REGEX.test(projectId)) {
     throw new Error(`Invalid project ID: ${projectId}`);
   }
@@ -133,14 +145,16 @@ async function executeCommand(
  */
 export async function build(projectId: string): Promise<BuildResult> {
   try {
-    // Try bun first (faster, already installed)
-    const result = await executeCommand(projectId, "bun", ["run", "build"]);
+    const rt = detectRuntime();
+    const cmd = rt === "bun" ? "bun" : "npx";
+    const args = rt === "bun" ? ["run", "build"] : ["--yes", "next", "build"];
+    const result = await executeCommand(projectId, cmd, args);
     return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return {
       success: false,
-      command: "bun run build",
+      command: "build",
       stdout: "",
       stderr: msg,
       exitCode: null,
@@ -157,7 +171,10 @@ export async function build(projectId: string): Promise<BuildResult> {
  */
 export async function test(projectId: string): Promise<TestResult> {
   try {
-    const result = await executeCommand(projectId, "bun", ["test"]);
+    const rt = detectRuntime();
+    const cmd = rt === "bun" ? "bun" : "npx";
+    const args = rt === "bun" ? ["test"] : ["--yes", "vitest", "run"];
+    const result = await executeCommand(projectId, cmd, args);
 
     // Parse output for pass/fail counts
     const passMatch = result.stdout.match(/(\d+)\s+pass/i);
@@ -176,7 +193,7 @@ export async function test(projectId: string): Promise<TestResult> {
     const msg = err instanceof Error ? err.message : String(err);
     return {
       success: false,
-      command: "bun test",
+      command: "test",
       stdout: "",
       stderr: msg,
       exitCode: null,
@@ -195,7 +212,10 @@ export async function test(projectId: string): Promise<TestResult> {
  */
 export async function lint(projectId: string): Promise<LintResult> {
   try {
-    const result = await executeCommand(projectId, "bunx", ["eslint", "."]);
+    const rt = detectRuntime();
+    const cmd = rt === "bun" ? "bunx" : "npx";
+    const args = ["--yes", "eslint", "."];
+    const result = await executeCommand(projectId, cmd, args);
 
     // Parse ESLint output for error/warning counts
     const errorMatch = result.stdout.match(/(\d+)\s+error/i);
@@ -213,7 +233,7 @@ export async function lint(projectId: string): Promise<LintResult> {
     const msg = err instanceof Error ? err.message : String(err);
     return {
       success: false,
-      command: "bunx eslint .",
+      command: "eslint",
       stdout: "",
       stderr: msg,
       exitCode: null,
@@ -229,13 +249,16 @@ export async function lint(projectId: string): Promise<LintResult> {
  */
 export async function typecheck(projectId: string): Promise<BuildResult> {
   try {
-    const result = await executeCommand(projectId, "bunx", ["tsc", "--noEmit"]);
+    const rt = detectRuntime();
+    const cmd = rt === "bun" ? "bunx" : "npx";
+    const args = ["--yes", "tsc", "--noEmit"];
+    const result = await executeCommand(projectId, cmd, args);
     return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return {
       success: false,
-      command: "bunx tsc --noEmit",
+      command: "tsc --noEmit",
       stdout: "",
       stderr: msg,
       exitCode: null,

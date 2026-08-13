@@ -11,12 +11,10 @@ import {
   XCircle,
   ChevronDown,
   ChevronRight,
-  FileCode,
-  FileText,
-  FilePlus,
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getLanguage, getFileIcon } from "@/lib/file-utils";
 
 interface ActiveTool {
   name: string;
@@ -35,42 +33,7 @@ interface ToolCallCardProps {
 // Tools that modify files — rendered with diff-like preview
 const FILE_MOD_TOOLS = new Set(["file_write", "file_edit", "patch", "file_delete", "file_rename", "dir_create"]);
 
-function getLanguage(filename: string): string {
-  const ext = filename.split(".").pop()?.toLowerCase();
-  const map: Record<string, string> = {
-    ts: "typescript",
-    tsx: "tsx",
-    js: "javascript",
-    jsx: "jsx",
-    py: "python",
-    json: "json",
-    html: "html",
-    css: "css",
-    sql: "sql",
-    prisma: "prisma",
-    md: "markdown",
-    sh: "bash",
-    yml: "yaml",
-    yaml: "yaml",
-    go: "go",
-    rs: "rust",
-    java: "java",
-    c: "c",
-    cpp: "cpp",
-  };
-  return map[ext ?? ""] ?? "text";
-}
-
-function getFileIcon(filename: string) {
-  const ext = filename.split(".").pop()?.toLowerCase();
-  if (["ts", "tsx", "js", "jsx", "py", "json", "html", "css", "sql", "prisma"].includes(ext ?? "")) {
-    return FileCode;
-  }
-  if (["md", "txt"].includes(ext ?? "")) {
-    return FileText;
-  }
-  return FilePlus;
-}
+// P-fix: getLanguage and getFileIcon now imported from @/lib/file-utils
 
 /** Detect lines that were added/removed for a simple visual diff */
 function renderDiffLines(
