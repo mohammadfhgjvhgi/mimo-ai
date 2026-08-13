@@ -1,5 +1,5 @@
 // ===================================================================
-// MiMo AI — Tool Registry (15 tools)
+// MiMo AI — Tool Registry (18 tools)
 // ===================================================================
 
 import { invokeFunction } from "../model";
@@ -633,6 +633,145 @@ export const TOOLS: Record<string, ToolDefinition> = {
         path: result.path ?? dirPath,
         entries: result.data,
         count: (result.data as Array<unknown>)?.length ?? 0,
+      };
+    },
+  },
+
+  // ─── Browser Automation (from research R5: browser-use) ───────────
+
+  browser_navigate: {
+    name: "browser_navigate",
+    description:
+      "Navigate to a URL in the browser and return the page content. Use for web research that requires JavaScript rendering.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "URL to navigate to" },
+      },
+      required: ["url"],
+    },
+    riskLevel: "low",
+    timeoutMs: 30000,
+    execute: async (input) => {
+      const url = String(input.url ?? "");
+      if (!url) throw new Error("url is required");
+      if (!url.startsWith("http")) throw new Error("URL must start with http:// or https://");
+
+      // Use web_reader (page_reader) as the browser backend
+      const result = await invokeFunction<{
+        code?: number;
+        data?: { title?: string; html?: string; publishedTime?: string };
+      }>("page_reader", { url });
+
+      const data = result?.data ?? {};
+      // Strip HTML tags for readable text
+      const textContent = (data.html ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      return {
+        url,
+        title: data.title ?? "",
+        content: textContent.slice(0, 8000),
+        publishTime: data.publishedTime ?? undefined,
+      };
+    },
+  },
+
+  // ─── Tool Chaining: execute multiple tools in sequence ────────────
+
+  tool_chain: {
+    name: "tool_chain",
+    description:
+      "Execute multiple tools in sequence, passing the result of each to the next. Useful for complex workflows like search→read→summarize.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        steps: {
+          type: "array",
+          description: "Array of tool calls to execute in sequence",
+          items: {
+            type: "object",
+            properties: {
+              tool: { type: "string", description: "Tool name to execute" },
+              input: { type: "object", description: "Input for the tool" },
+            },
+            required: ["tool", "input"],
+          },
+        },
+      },
+      required: ["steps"],
+    },
+    riskLevel: "medium",
+    timeoutMs: 60000,
+    execute: async (input) => {
+      const steps = Array.isArray(input.steps) ? input.steps : [];
+      if (steps.length === 0) throw new Error("steps array is required");
+      if (steps.length > 5) throw new Error("Maximum 5 steps in a chain");
+
+      const results: Array<{ tool: string; output: unknown }> = [];
+      let previousOutput: unknown = null;
+
+      for (const step of steps) {
+        const toolName = String(step.tool ?? "");
+        const toolInput = { ...(step.input ?? {}) } as Record<string, unknown>;
+
+        // If previous output exists, inject it as _previousResult
+        if (previousOutput !== null) {
+          toolInput._previousResult = previousOutput;
+        }
+
+        // Execute the tool
+        const result = await executeTool(toolName, toolInput);
+        if (result.error) {
+          return {
+            steps: results,
+            error: `Step "${toolName}" failed: ${result.error}`,
+            completed: false,
+          };
+        }
+
+        results.push({ tool: toolName, output: result.output });
+        previousOutput = result.output;
+      }
+
+      return {
+        steps: results,
+        finalResult: previousOutput,
+        completed: true,
+      };
+    },
+  },
+
+  // ─── Dry Run: preview what a tool would do without executing ──────
+
+  dry_run: {
+    name: "dry_run",
+    description:
+      "Preview what a tool would do without actually executing it. Returns the tool name, input, and estimated risk level.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tool: { type: "string", description: "Tool name to preview" },
+        input: { type: "object", description: "Input that would be passed to the tool" },
+      },
+      required: ["tool", "input"],
+    },
+    riskLevel: "low",
+    timeoutMs: 5000,
+    execute: async (input) => {
+      const toolName = String(input.tool ?? "");
+      const toolInput = input.input ?? {};
+      const tool = TOOLS[toolName];
+
+      if (!tool) {
+        return { tool: toolName, found: false, error: `Tool "${toolName}" not found` };
+      }
+
+      return {
+        tool: toolName,
+        found: true,
+        description: tool.description,
+        riskLevel: tool.riskLevel,
+        inputPreview: JSON.stringify(toolInput).slice(0, 500),
+        wouldExecute: true,
       };
     },
   },

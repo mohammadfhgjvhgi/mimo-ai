@@ -662,6 +662,22 @@ export async function executeTask(
             completionNotes: `${repairedContent.slice(0, 400)}\n\n[Self-repair: PASSED after ${repairAttempts} attempt(s)]`,
           },
         });
+
+        // Self-Improvement: Store failure memory (what went wrong + how it was fixed)
+        try {
+          const { writeMemory } = await import("./memory");
+          await writeMemory({
+            type: "failure",
+            content: `Task failed validation. Checks: ${failedChecks}. Fixed after ${repairAttempts} attempt(s). Original issue: ${responseContent.slice(0, 200)}. Fix: ${repairedContent.slice(0, 200)}`,
+            importance: 0.7,
+            conversationId,
+            source: "debugger",
+            scope: "conversation",
+            tags: ["self-repair", "failure-memory", agentName],
+          });
+        } catch {
+          // Non-fatal
+        }
       } else {
         await db.task.update({
           where: { id: taskId },
@@ -671,6 +687,22 @@ export async function executeTask(
             completionNotes: `Validation FAILED after ${repairAttempts} self-repair attempt(s): ${failedChecks}`,
           },
         });
+
+        // Self-Improvement: Store unresolved failure for future learning
+        try {
+          const { writeMemory } = await import("./memory");
+          await writeMemory({
+            type: "failure",
+            content: `Unresolved failure. Task: ${input.userMessage.slice(0, 100)}. Checks failed: ${failedChecks}. Could not repair after ${repairAttempts} attempts.`,
+            importance: 0.8,
+            conversationId,
+            source: "system",
+            scope: "conversation",
+            tags: ["unresolved-failure", "self-repair-failed", agentName],
+          });
+        } catch {
+          // Non-fatal
+        }
       }
     }
   }
@@ -726,11 +758,30 @@ export interface AutonomousRunResult {
  * Returns when all tasks complete or one fails max retries.
  */
 export async function runAutonomousLoop(
-  input: { conversationId: string; goal: string },
+  input: { conversationId: string; goal: string; resumeFromCheckpoint?: boolean },
   onEvent?: (event: StreamEvent) => void
 ): Promise<AutonomousRunResult> {
   const start = Date.now();
   const { conversationId, goal } = input;
+
+  // P4-2: Checkpoint Resume — check if there's a previous checkpoint
+  if (input.resumeFromCheckpoint) {
+    try {
+      const { loadLatestCheckpoint } = await import("./checkpoint");
+      const checkpoint = await loadLatestCheckpoint(conversationId);
+      if (checkpoint) {
+        await logExecution({
+          conversationId,
+          agentName: "orchestrator",
+          phase: "plan",
+          message: `Resuming mission from checkpoint (created ${checkpoint.createdAt.toISOString()})`,
+        });
+        onEvent?.({ type: "agent", agent: "orchestrator", phase: "resume" });
+      }
+    } catch {
+      // Non-fatal — resume is best-effort
+    }
+  }
 
   await logExecution({
     conversationId,
@@ -973,6 +1024,24 @@ export async function runAutonomousLoop(
         results.push(result);
         // Update graph: task completed (ValidationService already ran inside executeTask)
         updateTaskStatus(graph, taskId, "completed");
+
+        // P4-2: Save checkpoint after each task completion
+        try {
+          const { saveCheckpoint } = await import("./checkpoint");
+          const missionId = `mission_${conversationId}_${start}`;
+          const taskGraphData = {
+            missionId,
+            tasks: Array.from(graph.nodes.values()).map((n) => ({
+              id: n.id,
+              title: n.title,
+              status: n.status,
+              dependencies: n.dependencies,
+            })),
+          };
+          await saveCheckpoint(conversationId, missionId, taskGraphData);
+        } catch {
+          // Non-fatal — checkpoint is best-effort
+        }
 
         onEvent?.({
           type: "task",

@@ -101,5 +101,17 @@ export async function GET() {
       toolUsage: toolUsageAgg.map((t) => ({ name: t.toolName, count: t._count.toolName })),
       agentUsage: agentUsageAgg.map((a) => ({ name: a.agentName, count: a._count.agentName })),
     },
+    // Event Replay: full execution log for tracing/replay
+    eventLog: recentExecutions.map((e) => ({
+      id: e.id,
+      agent: e.agentName,
+      tool: e.toolName,
+      phase: e.phase,
+      level: e.level,
+      message: e.message,
+      status: e.status,
+      durationMs: e.durationMs,
+      timestamp: e.createdAt.toISOString(),
+    })),
   });
 }

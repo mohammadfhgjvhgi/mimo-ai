@@ -161,3 +161,60 @@ export async function queryGraph(
 
   return { entities };
 }
+
+/**
+ * Skill Discovery — find skills from the knowledge base that match a task.
+ * Looks for patterns in KnowledgeEntry where category='skill'.
+ */
+export async function discoverSkills(
+  taskDescription: string
+): Promise<Array<{ id: string; title: string; summary: string | null; sourcePath: string | null }>> {
+  const keywords = taskDescription.toLowerCase().split(/\s+/).filter((w) => w.length > 3).slice(0, 5);
+
+  if (keywords.length === 0) {
+    return [];
+  }
+
+  const entries = await db.knowledgeEntry.findMany({
+    where: {
+      category: "skill",
+      OR: keywords.flatMap((kw) => [
+        { title: { contains: kw } },
+        { summary: { contains: kw } },
+        { content: { contains: kw } },
+      ]),
+    },
+    take: 5,
+    orderBy: [{ accessCount: "desc" }],
+    select: { id: true, title: true, summary: true, sourcePath: true },
+  });
+
+  return entries;
+}
+
+/**
+ * Store a relation between two entities.
+ */
+export async function storeRelation(
+  fromId: string,
+  toId: string,
+  type: string,
+  properties?: Record<string, unknown>
+): Promise<void> {
+  try {
+    await db.knowledgeRelation.upsert({
+      where: { fromId_toId_type: { fromId, toId, type } },
+      create: {
+        fromId,
+        toId,
+        type,
+        properties: properties ? JSON.stringify(properties) : null,
+      },
+      update: {
+        properties: properties ? JSON.stringify(properties) : undefined,
+      },
+    });
+  } catch (err) {
+    console.warn(`[knowledge] Failed to store relation ${fromId}→${toId}:`, err);
+  }
+}

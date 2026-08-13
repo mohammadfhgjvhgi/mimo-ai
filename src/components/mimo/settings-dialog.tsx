@@ -112,7 +112,7 @@ export function SettingsDialog() {
               </h3>
               <div className="text-xs space-y-1 text-muted-foreground">
                 <div>MiMo AI Engineering Platform v2.0</div>
-                <div>12 agents · 15 tools · 69 skills</div>
+                <div>12 agents · 18 tools · 69 skills</div>
                 <div>z-ai-web-dev-sdk · GLM-4-plus</div>
                 <div>Next.js 16 · TypeScript 5 · Prisma</div>
               </div>

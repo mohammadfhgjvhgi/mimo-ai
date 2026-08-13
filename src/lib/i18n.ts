@@ -39,7 +39,7 @@ const translations: TranslationDict = {
   "chat.empty.title": { ar: "منصة MiMo للذكاء الهندسي", en: "MiMo AI Engineering Platform" },
   "chat.empty.desc": {
     ar: "نظام ذكاء اصطناعي مستقل مع 10 وكلاء متخصصين و6 أدوات و69 مهارة. صف هدفاً — سيله MiMo يبحث، يخطط، يبني، يختبر، ويسلّم.",
-    en: "An autonomous AI engineering system with 12 specialized agents, 15 tools, and 69 skills. Describe a goal — MiMo will research, plan, build, test, and deliver.",
+    en: "An autonomous AI engineering system with 12 specialized agents, 18 tools, and 69 skills. Describe a goal — MiMo will research, plan, build, test, and deliver.",
   },
   "chat.you": { ar: "أنت", en: "You" },
   "chat.assistant": { ar: "المساعد", en: "Assistant" },

@@ -407,7 +407,7 @@ function EmptyState() {
       </div>
       <h3 className="text-lg font-semibold mb-1">MiMo AI Engineering Platform</h3>
       <p className="text-sm text-muted-foreground max-w-md mb-6">
-        An autonomous AI engineering system with 12 specialized agents, 15 tools, and 69 skills.
+        An autonomous AI engineering system with 12 specialized agents, 18 tools, and 69 skills.
         Describe a goal — MiMo will research, plan, build, test, and deliver.
       </p>
 

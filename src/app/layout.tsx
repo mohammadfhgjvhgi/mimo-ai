@@ -27,7 +27,7 @@ export const headers = () => {
 
 export const metadata: Metadata = {
   title: "MiMo AI — Engineering Intelligence Platform",
-  description: "Autonomous AI engineering system with 12 agents, 15 tools, and 69 skills. Plan, research, build, test, and deliver.",
+  description: "Autonomous AI engineering system with 12 agents, 18 tools, and 69 skills. Plan, research, build, test, and deliver.",
   keywords: ["MiMo AI", "AI Engineering", "Autonomous Agents", "Multi-Agent", "Next.js", "TypeScript"],
   authors: [{ name: "MiMo AI" }],
   icons: {
