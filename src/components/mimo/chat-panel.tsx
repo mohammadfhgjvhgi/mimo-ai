@@ -30,7 +30,9 @@ import { getAgentIcon } from "./agent-icons";
 import { Markdown } from "./markdown";
 import { InlinePreview } from "./inline-preview";
 import { ToolCallCard } from "./tool-call-card";
+import { ArtifactCard } from "./artifact-card";
 import { useMentionAutocomplete, MentionPopover } from "./mention-autocomplete";
+import { artifactParser, type Artifact } from "@/lib/ai/artifact-parser";
 import { cn } from "@/lib/utils";
 import { t, getDirection } from "@/lib/i18n";
 import {
@@ -154,6 +156,8 @@ export function ChatPanel() {
     useMimo.setState((s) => ({ messages: [...s.messages, userMsg] }));
 
     startStreaming();
+    // Reset artifact parser for new streaming message
+    artifactParser.reset("streaming");
 
     try {
       abortRef.current = new AbortController();
@@ -401,25 +405,12 @@ export function ChatPanel() {
 
         {/* Streaming content */}
         {isStreaming && streamingContent && (
-          <div className="flex gap-3" dir={dir}>
-            <div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-              <Bot className="w-3.5 h-3.5 text-foreground" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-muted-foreground mb-1">
-                {selectedAgentDef?.title ?? t("chat.assistant", locale)}
-              </div>
-              <Markdown
-                content={streamingContent}
-                className="text-sm leading-relaxed"
-              />
-              <span className="inline-block w-1.5 h-4 bg-foreground ml-0.5 animate-pulse align-middle" />
-              {/* Inline preview during streaming */}
-              {pendingPreview && (
-                <InlinePreview url={pendingPreview.url} name={pendingPreview.name} />
-              )}
-            </div>
-          </div>
+          <StreamingContent
+            content={streamingContent}
+            agentTitle={selectedAgentDef?.title ?? t("chat.assistant", locale)}
+            dir={dir}
+            pendingPreview={pendingPreview}
+          />
         )}
       </div>
 
@@ -765,14 +756,32 @@ function MessageBubble({ message }: { message: import("@/lib/ai-client").Message
           </div>
         ) : (
           <>
-            <Markdown
-              content={displayContent}
-              className="text-sm leading-relaxed"
-            />
-            {/* Inline preview for saved messages */}
-            {message.previewUrl && (
-              <InlinePreview url={message.previewUrl} name={message.previewName ?? "Preview"} />
-            )}
+            {/* Parse and render artifacts from saved message */}
+            {(() => {
+              const msgId = `msg-${message.id}`;
+              const parsed = artifactParser.parse(msgId, displayContent);
+              return (
+                <>
+                  {parsed.text.trim() && (
+                    <Markdown content={parsed.text} className="text-sm leading-relaxed" />
+                  )}
+                  {parsed.artifacts.map((artifact) => (
+                    <ArtifactCard
+                      key={artifact.id}
+                      artifactId={artifact.id}
+                      title={artifact.title}
+                      actions={artifact.actions}
+                      previewUrl={message.previewUrl ?? undefined}
+                      onViewPreview={() => useMimo.getState().setActivePanel("preview")}
+                    />
+                  ))}
+                  {/* Inline preview for saved messages (only if no artifacts) */}
+                  {message.previewUrl && !parsed.artifacts.length && (
+                    <InlinePreview url={message.previewUrl} name={message.previewName ?? "Preview"} />
+                  )}
+                </>
+              );
+            })()}
           </>
         )}
       </div>
@@ -818,6 +827,67 @@ function TokenHud({
       <span className="text-muted-foreground font-mono" title={locale === "ar" ? "رسائل المساعد" : "Assistant messages"}>
         {assistantMsgs} {locale === "ar" ? "رد" : "replies"}
       </span>
+    </div>
+  );
+}
+
+/**
+ * StreamingContent — renders streaming model output with real-time artifact parsing.
+ * Shows ArtifactCard cards as the model outputs <mimoAction> tags.
+ */
+function StreamingContent({
+  content,
+  agentTitle,
+  dir,
+  pendingPreview,
+}: {
+  content: string;
+  agentTitle: string;
+  dir: "rtl" | "ltr";
+  pendingPreview: { url: string; name: string } | null;
+}) {
+  // Parse artifacts from streaming content (uses singleton parser with state)
+  const messageId = "streaming";
+  const parsed = artifactParser.parse(messageId, content);
+
+  return (
+    <div className="flex gap-3 max-w-3xl mx-auto" dir={dir}>
+      <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Bot className="w-4 h-4 text-foreground" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-semibold text-muted-foreground mb-1.5">
+          {agentTitle}
+        </div>
+
+        {/* Render non-artifact text as markdown */}
+        {parsed.text.trim() && (
+          <Markdown content={parsed.text} className="text-sm leading-relaxed" />
+        )}
+
+        {/* Render artifacts as ArtifactCard */}
+        {parsed.artifacts.map((artifact) => (
+          <ArtifactCard
+            key={artifact.id}
+            artifactId={artifact.id}
+            title={artifact.title}
+            actions={artifact.actions}
+            previewUrl={pendingPreview?.url}
+            onViewPreview={(id) => {
+              // Switch to preview panel
+              useMimo.getState().setActivePanel("preview");
+            }}
+          />
+        ))}
+
+        {/* Cursor */}
+        <span className="inline-block w-1.5 h-4 bg-foreground ml-0.5 animate-pulse align-middle" />
+
+        {/* Inline preview during streaming */}
+        {pendingPreview && !parsed.artifacts.length && (
+          <InlinePreview url={pendingPreview.url} name={pendingPreview.name} />
+        )}
+      </div>
     </div>
   );
 }

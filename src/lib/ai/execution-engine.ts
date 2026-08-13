@@ -15,6 +15,12 @@
 import { db } from "@/lib/db";
 import * as WorkspaceService from "./workspace";
 import path from "path";
+import {
+  ARTIFACT_TAG_OPEN,
+  ARTIFACT_TAG_CLOSE,
+  ACTION_TAG_OPEN,
+  ACTION_TAG_CLOSE,
+} from "./artifact-format";
 
 export interface CodeBlock {
   lang: string;
@@ -157,21 +163,120 @@ function getArtifactType(lang: string, filename?: string): string {
 }
 
 /**
+ * Extract mimoAction tags from model response (new artifact format).
+ * Returns array of file actions with explicit filePaths.
+ */
+export function extractArtifactActions(content: string): Array<{
+  type: "file" | "shell" | "start";
+  filePath?: string;
+  content: string;
+}> {
+  const actions: Array<{ type: "file" | "shell" | "start"; filePath?: string; content: string }> = [];
+
+  // Find all mimoAction tags
+  const actionRegex = /<mimoAction\s+type="([^"]*)"(?:\s+filePath="([^"]*)")?\s*>([\s\S]*?)<\/mimoAction>/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = actionRegex.exec(content)) !== null) {
+    const type = match[1] as "file" | "shell" | "start";
+    const filePath = match[2];
+    const actionContent = match[3].trim();
+    actions.push({ type, filePath, content: actionContent });
+  }
+
+  return actions;
+}
+
+/**
  * MAIN EXECUTION FUNCTION
  * Called after the model generates a response.
  * Parses the response, creates real files, stores artifacts.
+ * Supports BOTH: new mimoAction format AND legacy code blocks.
  */
 export async function executeResponse(
   content: string,
   context: { conversationId: string; taskId?: string; agentName: string; projectId?: string }
 ): Promise<ExecutionResult> {
+  // P-artifact: Try new mimoAction format first (preferred)
+  const artifactActions = extractArtifactActions(content);
   const blocks = extractCodeBlocks(content);
+
   const result: ExecutionResult = {
     filesCreated: [],
     artifactsCreated: 0,
     previewable: false,
   };
 
+  // P-artifact: Process new mimoAction format first (preferred)
+  if (artifactActions.length > 0) {
+    await WorkspaceService.ensureWorkspaceDirs();
+
+    for (const action of artifactActions) {
+      if (action.type !== "file" || !action.filePath) continue;
+      if (action.content.length < 10) continue;
+
+      const safeFilename = action.filePath.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const ext = path.extname(safeFilename).slice(1).toLowerCase();
+      const lang = ext || "text";
+
+      try {
+        let writeResult;
+        let filePathForArtifact: string;
+        if (context.projectId) {
+          writeResult = await WorkspaceService.writeProjectFile(context.projectId, safeFilename, action.content);
+          filePathForArtifact = writeResult.path
+            ? `workspace/projects/${context.projectId}/${writeResult.path}`
+            : `workspace/projects/${context.projectId}/${safeFilename}`;
+        } else {
+          writeResult = await WorkspaceService.write(safeFilename, action.content);
+          filePathForArtifact = writeResult.path ?? `upload/${safeFilename}`;
+        }
+
+        if (!writeResult.success) {
+          console.error(`[execution-engine] Failed to create ${safeFilename}:`, writeResult.error);
+          continue;
+        }
+
+        const fileSize = writeResult.metadata?.size ?? action.content.length;
+        const artifactType = getArtifactType(lang, safeFilename);
+        const isHtml = isPreviewable(lang, safeFilename);
+
+        const artifact = await db.artifact.create({
+          data: {
+            conversationId: context.conversationId,
+            taskId: context.taskId,
+            name: safeFilename,
+            type: artifactType,
+            format: lang,
+            content: action.content,
+            summary: `${lang} file (${(fileSize / 1024).toFixed(1)}KB)`,
+            filePath: filePathForArtifact,
+            tags: JSON.stringify([lang, "artifact", context.projectId ? "project" : "global"]),
+          },
+        });
+
+        result.filesCreated.push({
+          filename: safeFilename,
+          path: filePathForArtifact,
+          size: fileSize,
+          lang,
+          artifactId: artifact.id,
+        });
+        result.artifactsCreated++;
+
+        if (isHtml && !result.previewable) {
+          result.previewable = true;
+          result.previewArtifactId = artifact.id;
+        }
+      } catch (err) {
+        console.error(`[execution-engine] Failed to create ${safeFilename}:`, err);
+      }
+    }
+
+    return result;
+  }
+
+  // Legacy: Fall back to code block extraction
   if (blocks.length === 0) {
     return result;
   }

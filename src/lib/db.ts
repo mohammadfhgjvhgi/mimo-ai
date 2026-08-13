@@ -4,6 +4,8 @@ import { PrismaClient } from '@prisma/client'
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import path from 'node:path'
 
+// P-fix: Prisma 7 generates client to .prisma/client — ensure it's resolvable
+
 const dbPath = process.env.DATABASE_URL?.replace(/^file:/, '') ?? path.join(process.cwd(), 'db', 'custom.db')
 
 const globalForPrisma = globalThis as unknown as {

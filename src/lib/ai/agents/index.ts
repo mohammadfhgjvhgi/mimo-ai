@@ -3,6 +3,7 @@
 // ===================================================================
 
 import type { AgentDefinition, AgentRole } from "../types";
+import { ARTIFACT_INSTRUCTIONS } from "../artifact-format";
 
 export const AGENTS: Record<AgentRole, AgentDefinition> = {
   orchestrator: {
@@ -111,12 +112,14 @@ Your job:
 3. Write code that fits the existing architecture.
 4. Use TypeScript strict types, no any.
 5. Follow the project's conventions (Next.js 16 App Router, Tailwind, shadcn/ui, Prisma).
-6. Output code in proper markdown fences with language tags.
+6. When building web apps, HTML pages, or any file-based project, USE THE ARTIFACT FORMAT below.
 7. Explain key decisions briefly.
 8. Suggest tests for the code you write.
 9. When refactoring: improve structure without changing behavior. Extract functions, reduce complexity, improve naming, remove dead code.
 
-Never fabricate APIs. If unsure about an API, say so. Prefer small, composable functions. Always handle errors.`,
+Never fabricate APIs. If unsure about an API, say so. Prefer small, composable functions. Always handle errors.
+
+${ARTIFACT_INSTRUCTIONS}`,
   },
 
   debugger: {
