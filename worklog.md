@@ -1031,3 +1031,34 @@ Stage Summary:
 - 0 errors + 0 warnings (was 51 warnings)
 - Dead code مربوط: 5 من 9 ميزات advanced.ts + checkpoint resume فعلي + temperature/maxTokens end-to-end
 - أمني: XSS fixed، CSP tightened، abort signal، rate limiting شامل، .env perms
+
+---
+Task ID: ZCode-Theme-Cleanup
+Agent: Frontend Developer
+Task: Replace all violet/gradient styles with neutral grayscale in chat-panel.tsx
+
+Work Log:
+- Grepped chat-panel.tsx for all violet/fuchsia/amber/glow/gradient patterns (17 instances found)
+- Applied 13 atomic class replacements via MultiEdit, plus 1 standalone Edit
+- Replaced send button: removed `bg-gradient-to-br from-violet-500 to-fuchsia-500 ... glow-violet` → `bg-primary text-primary-foreground hover:bg-primary/90`
+- Replaced streaming avatar: gradient → `bg-secondary`; streaming cursor `bg-violet-500` → `bg-foreground`
+- Replaced streaming assistant label: `text-violet-400` → `text-muted-foreground`
+- Replaced EmptyState hero badge: removed blur halo div entirely; `bg-gradient-to-br ... glow-violet` → `bg-secondary border border-border`; Sparkles icon `text-white` → `text-foreground`
+- Replaced greeting: `text-gradient-violet` → `text-foreground font-semibold`
+- Replaced capability value: `text-violet-500` → `text-primary`
+- Template card icons: kept `bg-gradient-to-br` + `template.gradient` (per-category colors, intentional); removed only `shadow-sm` and `group-hover:scale-110`
+- Replaced autonomous Zap icon in template cards: `text-amber-500` → `text-primary`
+- Replaced autonomous mode button: `bg-amber-500 hover:bg-amber-600 text-white` → `bg-primary hover:bg-primary/90 text-primary-foreground`
+- Replaced CategoryChip active state: `bg-violet-500 text-white` → `bg-primary text-primary-foreground`
+- Replaced MessageBubble default avatar: gradient + glow → `bg-secondary`
+- Replaced reasoning toggle: `text-violet-400 hover:text-violet-300` → `text-muted-foreground hover:text-foreground`
+- Replaced reasoning container: `bg-violet-500/5 border border-violet-500/20` → `bg-secondary/40 border border-border`
+- Replaced TokenHud output indicator: `text-violet-400` → `text-muted-foreground`
+- Verified: ran `bunx tsc --noEmit` → 0 errors; ran `bun run lint` → 0 errors (8 pre-existing warnings in other files only)
+- Logic untouched — only CSS class strings changed; no other files modified
+
+Stage Summary:
+- chat-panel.tsx is now 100% neutral grayscale (zero violet/fuchsia/amber/glow occurrences except intentional per-template category gradients)
+- Send button, autonomous toggle, streaming avatar, streaming cursor, EmptyState hero, greeting, capabilities, category chips, message avatars, reasoning toggle/container, and token HUD all migrated to neutral semantic tokens (`bg-primary`, `bg-secondary`, `bg-foreground`, `text-foreground`, `text-muted-foreground`, `text-primary`, `border-border`)
+- TypeScript strict check passes with 0 errors; ESLint passes with 0 errors (only pre-existing warnings in unrelated files)
+- ZCode visual identity (pure neutral grayscale) now consistently applied to the chat surface

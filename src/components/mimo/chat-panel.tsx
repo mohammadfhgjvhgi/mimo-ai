@@ -337,7 +337,7 @@ export function ChatPanel() {
             variant={autonomousMode ? "default" : "outline"}
             size="sm"
             onClick={() => setAutonomousMode(!autonomousMode)}
-            className={cn("h-7 gap-1.5 text-[11px]", autonomousMode && "bg-amber-500 hover:bg-amber-600 text-white border-0")}
+            className={cn("h-7 gap-1.5 text-[11px]", autonomousMode && "bg-primary hover:bg-primary/90 text-primary-foreground border-0")}
           >
             <Zap className="w-3 h-3" />
             Autonomous
@@ -402,18 +402,18 @@ export function ChatPanel() {
         {/* Streaming content */}
         {isStreaming && streamingContent && (
           <div className="flex gap-3" dir={dir}>
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center flex-shrink-0">
-              <Bot className="w-3.5 h-3.5 text-white" />
+            <div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
+              <Bot className="w-3.5 h-3.5 text-foreground" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-violet-400 mb-1">
+              <div className="text-xs font-semibold text-muted-foreground mb-1">
                 {selectedAgentDef?.title ?? t("chat.assistant", locale)}
               </div>
               <Markdown
                 content={streamingContent}
                 className="text-sm leading-relaxed"
               />
-              <span className="inline-block w-1.5 h-4 bg-violet-500 ml-0.5 animate-pulse align-middle" />
+              <span className="inline-block w-1.5 h-4 bg-foreground ml-0.5 animate-pulse align-middle" />
               {/* Inline preview during streaming */}
               {pendingPreview && (
                 <InlinePreview url={pendingPreview.url} name={pendingPreview.name} />
@@ -511,7 +511,7 @@ export function ChatPanel() {
               onClick={send}
               disabled={!input.trim()}
               size="icon"
-              className="h-[56px] w-12 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 glow-violet disabled:glow-violet-0 transition-smooth"
+              className="h-[56px] w-12 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-smooth"
             >
               <Send className="w-4 h-4" />
             </Button>
@@ -540,16 +540,15 @@ function EmptyState({
 
   return (
     <div className="h-full flex flex-col items-center justify-start text-center py-12 px-4 overflow-y-auto scrollbar-thin">
-      {/* Hero badge with glow */}
+      {/* Hero badge */}
       <div className="relative mb-5">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-3xl blur-2xl opacity-40"></div>
-        <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center glow-violet">
-          <Sparkles className="w-10 h-10 text-white" />
+        <div className="relative w-20 h-20 rounded-3xl bg-secondary border border-border flex items-center justify-center">
+          <Sparkles className="w-10 h-10 text-foreground" />
         </div>
       </div>
 
       {/* Greeting */}
-      <h2 className="text-2xl font-bold mb-2 text-gradient-violet">
+      <h2 className="text-2xl font-bold mb-2 text-foreground font-semibold">
         {isAr ? "ماذا تريد أن تبني اليوم؟" : "What do you want to build today?"}
       </h2>
       <p className="text-sm text-muted-foreground max-w-md mb-6 leading-relaxed">
@@ -565,7 +564,7 @@ function EmptyState({
             key={cap.label.en}
             className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 border text-xs"
           >
-            <span className="font-bold text-violet-500">{cap.value}</span>
+            <span className="font-bold text-primary">{cap.value}</span>
             <span className="text-muted-foreground">{isAr ? cap.label.ar : cap.label.en}</span>
           </div>
         ))}
@@ -601,7 +600,7 @@ function EmptyState({
               <div className="flex items-start gap-2.5">
                 <div
                   className={cn(
-                    "w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform",
+                    "w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center flex-shrink-0 transition-transform",
                     template.gradient
                   )}
                 >
@@ -613,7 +612,7 @@ function EmptyState({
                       {isAr ? template.title.ar : template.title.en}
                     </span>
                     {template.autonomous && (
-                      <Zap className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />
+                      <Zap className="w-2.5 h-2.5 text-primary flex-shrink-0" />
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground line-clamp-2">
@@ -653,7 +652,7 @@ function CategoryChip({
       className={cn(
         "px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors",
         active
-          ? "bg-violet-500 text-white"
+          ? "bg-primary text-primary-foreground"
           : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
       )}
     >
@@ -704,7 +703,7 @@ function MessageBubble({ message }: { message: import("@/lib/ai-client").Message
             ? "bg-muted"
             : agent
             ? agent.color
-            : "bg-gradient-to-br from-violet-500 to-fuchsia-500 glow-violet"
+            : "bg-secondary"
         )}
       >
         {renderAgentAvatar()}
@@ -740,7 +739,7 @@ function MessageBubble({ message }: { message: import("@/lib/ai-client").Message
           <div className="mb-2">
             <button
               onClick={() => setShowReasoning(!showReasoning)}
-              className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"
             >
               {showReasoning ? (
                 <ChevronDown className="w-3 h-3" />
@@ -753,7 +752,7 @@ function MessageBubble({ message }: { message: import("@/lib/ai-client").Message
                 : locale === "ar" ? "إظهار التفكير" : "Show reasoning"}
             </button>
             {showReasoning && (
-              <div className="mt-1.5 p-2.5 rounded-md bg-violet-500/5 border border-violet-500/20 text-[11px] text-muted-foreground italic whitespace-pre-wrap">
+              <div className="mt-1.5 p-2.5 rounded-md bg-secondary/40 border border-border text-[11px] text-muted-foreground italic whitespace-pre-wrap">
                 {reasoning}
               </div>
             )}
@@ -811,7 +810,7 @@ function TokenHud({
         <span className="font-mono font-semibold">{formatK(totalIn)}</span>
       </span>
       <span className="text-muted-foreground/30">·</span>
-      <span className="flex items-center gap-1 text-violet-400" title={locale === "ar" ? "رموز الإخراج" : "Output tokens"}>
+      <span className="flex items-center gap-1 text-muted-foreground" title={locale === "ar" ? "رموز الإخراج" : "Output tokens"}>
         <span className="text-[9px]">↓</span>
         <span className="font-mono font-semibold">{formatK(totalOut)}</span>
       </span>

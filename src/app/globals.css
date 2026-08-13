@@ -9,9 +9,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Explicitly limit content scanning to src/ only — prevents Tailwind from
-   scanning research-export/upload/download folders which contain huge HTML
-   that bloats the CSS bundle and crashes Turbopack's RSC streaming. */
+/* Explicitly limit content scanning to src/ only */
 @source "../components/**/*.{js,ts,jsx,tsx}";
 @source "../app/**/*.{js,ts,jsx,tsx,mdx}";
 @source "../lib/**/*.{js,ts,tsx}";
@@ -64,7 +62,7 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -98,40 +96,48 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* ZCode design system — pure neutral grayscale, no color tints */
 .dark {
-  /* Deep dark background — bolt.diy/v0 inspired */
-  --background: oklch(0.13 0.005 280);
-  --foreground: oklch(0.97 0.005 280);
-  --card: oklch(0.17 0.006 280);
-  --card-foreground: oklch(0.97 0.005 280);
-  --popover: oklch(0.17 0.006 280);
-  --popover-foreground: oklch(0.97 0.005 280);
-  /* Violet accent — matches bolt.diy signature gradient */
-  --primary: oklch(0.62 0.214 290);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.22 0.008 280);
-  --secondary-foreground: oklch(0.97 0.005 280);
-  --muted: oklch(0.20 0.006 280);
-  --muted-foreground: oklch(0.65 0.01 280);
-  --accent: oklch(0.25 0.01 280);
-  --accent-foreground: oklch(0.97 0.005 280);
+  /* rgb(22, 22, 22) = oklch(0.16 0 0) — ZCode's exact body bg */
+  --background: oklch(0.16 0 0);
+  --foreground: oklch(0.985 0 0);
+  /* Cards: white with 5% opacity */
+  --card: oklab(1 0 0 / 0.05);
+  --card-foreground: oklch(0.985 0 0);
+  /* Popover: slightly more opaque */
+  --popover: oklab(0.2 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  /* Primary: white (no violet) */
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.16 0 0);
+  /* Secondary: white 8% opacity */
+  --secondary: oklab(1 0 0 / 0.08);
+  --secondary-foreground: oklch(0.985 0 0);
+  /* Muted: white 5% opacity */
+  --muted: oklab(1 0 0 / 0.05);
+  --muted-foreground: oklch(0.708 0 0);
+  /* Accent: white 8% opacity */
+  --accent: oklab(1 0 0 / 0.08);
+  --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.65 0.2 25);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.62 0.214 290);
-  --chart-1: oklch(0.62 0.214 290);
-  --chart-2: oklch(0.7 0.15 165);
-  --chart-3: oklch(0.75 0.18 80);
-  --chart-4: oklch(0.6 0.22 305);
-  --chart-5: oklch(0.65 0.2 15);
-  --sidebar: oklch(0.11 0.005 280);
-  --sidebar-foreground: oklch(0.95 0.005 280);
-  --sidebar-primary: oklch(0.62 0.214 290);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.18 0.008 280);
-  --sidebar-accent-foreground: oklch(0.97 0.005 280);
-  --sidebar-border: oklch(1 0 0 / 6%);
-  --sidebar-ring: oklch(0.62 0.214 290);
+  /* Borders: white 8% opacity */
+  --border: oklab(1 0 0 / 0.08);
+  --input: oklab(1 0 0 / 0.1);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  /* Sidebar: same as background (no separation) */
+  --sidebar: oklch(0.16 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.985 0 0);
+  --sidebar-primary-foreground: oklch(0.16 0 0);
+  --sidebar-accent: oklab(1 0 0 / 0.08);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklab(1 0 0 / 0.06);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -144,14 +150,12 @@
 }
 
 /* ─── Markdown code block refinements ────────────────────────── */
-/* Ensure highlight.js tokens render correctly inside our dark code blocks */
 .hljs-container pre code.hljs {
   background: transparent;
   padding: 0;
   color: inherit;
 }
 
-/* Scrollbar styling for long code blocks & lists */
 .hljs-container pre {
   scrollbar-width: thin;
   scrollbar-color: oklch(0.4 0 0) transparent;
@@ -168,7 +172,7 @@
   background: transparent;
 }
 
-/* Custom scrollbar for scrollable panels (max-h-96 etc.) */
+/* Custom scrollbar for scrollable panels */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: oklch(0.5 0 0 / 0.3) transparent;
@@ -188,50 +192,15 @@
   background: transparent;
 }
 
-/* ─── Glow effects for gradient buttons ──────────────────────────── */
-.glow-violet {
-  box-shadow: 0 0 24px -4px oklch(0.62 0.214 290 / 0.4);
-}
-.glow-violet:hover {
-  box-shadow: 0 0 32px -2px oklch(0.62 0.214 290 / 0.6);
-}
-
-/* ─── Subtle gradient mesh background ────────────────────────────── */
-.bg-mesh-dark {
-  background-image:
-    radial-gradient(at 20% 20%, oklch(0.62 0.214 290 / 0.08) 0px, transparent 50%),
-    radial-gradient(at 80% 10%, oklch(0.7 0.18 320 / 0.06) 0px, transparent 50%),
-    radial-gradient(at 50% 80%, oklch(0.55 0.2 270 / 0.05) 0px, transparent 50%);
-}
-
 /* ─── Smooth transitions ─────────────────────────────────────────── */
 .transition-smooth {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s ease;
 }
 
-/* ─── Card hover lift ────────────────────────────────────────────── */
-.hover-lift {
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+/* ─── Card hover ─────────────────────────────────────────────────── */
+.hover-card {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
-.hover-lift:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px -2px oklch(0 0 0 / 0.3);
-}
-
-/* ─── Animated gradient text ─────────────────────────────────────── */
-.text-gradient-violet {
-  background: linear-gradient(135deg, oklch(0.7 0.22 290), oklch(0.65 0.24 320));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* ─── Pulse for active states ────────────────────────────────────── */
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 oklch(0.62 0.214 290 / 0.4); }
-  70% { box-shadow: 0 0 0 6px oklch(0.62 0.214 290 / 0); }
-  100% { box-shadow: 0 0 0 0 oklch(0.62 0.214 290 / 0); }
-}
-.pulse-ring {
-  animation: pulse-ring 2s infinite;
+.hover-card:hover {
+  background-color: oklab(1 0 0 / 0.08);
 }

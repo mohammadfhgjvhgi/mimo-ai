@@ -83,19 +83,14 @@ export function Sidebar() {
   };
 
   return (
-    <div className="w-60 border-r border-sidebar-border bg-sidebar flex flex-col h-full">
-      {/* Brand */}
-      <div className="px-3 py-3 border-b border-sidebar-border">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center glow-violet">
-            <Zap className="w-4 h-4 text-white" />
+    <div className="w-60 border-r border-border bg-background flex flex-col h-full">
+      {/* Brand — minimal, no gradient */}
+      <div className="px-3 py-3 border-b border-border">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-secondary flex items-center justify-center">
+            <Zap className="w-3.5 h-3.5 text-foreground" />
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-bold leading-tight text-sidebar-foreground">MiMo AI</div>
-            <div className="text-[10px] text-sidebar-foreground/50 leading-tight">
-              Engineering Platform
-            </div>
-          </div>
+          <span className="text-sm font-semibold">MiMo</span>
         </div>
       </div>
 
@@ -142,10 +137,10 @@ export function Sidebar() {
                 <div
                   key={conv.id}
                   className={cn(
-                    "group w-full text-left px-2.5 py-2 rounded-lg transition-smooth text-xs",
+                    "group w-full text-left px-2.5 py-2 rounded-md transition-smooth text-xs",
                     currentConversation?.id === conv.id
-                      ? "bg-primary/10 text-sidebar-foreground ring-1 ring-primary/20"
-                      : "hover:bg-sidebar-accent text-sidebar-foreground/70"
+                      ? "bg-secondary text-foreground"
+                      : "hover:bg-secondary/60 text-muted-foreground"
                   )}
                 >
                   <div className="flex items-start gap-2">
@@ -237,7 +232,7 @@ export function Sidebar() {
 
       {/* System state — minimal footer */}
       {systemState && (
-        <div className="px-3 py-2 border-t border-sidebar-border flex items-center justify-between text-[10px] text-sidebar-foreground/40">
+        <div className="px-3 py-2 border-t border-border flex items-center justify-between text-[10px] text-muted-foreground/50">
           <span>{systemState.agents} agents</span>
           <span>{systemState.skills} skills</span>
           <span>{systemState.tools} tools</span>
