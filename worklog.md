@@ -750,3 +750,106 @@ Stage Summary:
 - البحث أكد أن MiMo يتفوق على الأقران في: multi-agent visualization (task graph + timeline + decisions + knowledge graph) — وهي ميزات لا يمتلكها معظم المنافسين
 - الفجوات الرئيسية التي سُدّت: markdown quality, onboarding, in-chat diff, token HUD, settings depth, agent attribution, file mentions
 - جميع التحسينات متوافقة مع RTL/LTR و Arabic/English
+
+---
+Task ID: FileAudit-Config
+Agent: Code Audit (Config + Infra)
+Task: Audit config files, prisma, hooks, and infrastructure
+
+Work Log:
+- Read worklog.md for project context (MiMo AI Engineering Platform)
+- Read all root config files: package.json, tsconfig.json, next.config.ts, eslint.config.mjs, postcss.config.mjs, tailwind.config.ts, components.json, Caddyfile, .gitignore, .env.example
+- Verified .env exists (1 line, mode 775, owner z:z) — did NOT read secret contents
+- Read prisma/schema.prisma (319 lines, 11 active models + 2 orphaned knowledge-graph models)
+- Read src/hooks/use-toast.ts (194 lines) and src/hooks/use-mobile.ts (19 lines)
+- Read root shell scripts: start-dev.sh, start-server.sh, keep-alive.sh
+- Inspected .zscripts/ directory (8 build/dev/start scripts)
+- Inspected tests/ directory (12 test files + 3 shell helpers)
+- Inspected mini-services/ (empty — only .gitkeep) and skills/ (70+ external skill packages, not project code)
+- Produced detailed per-file audit report with: purpose, what's implemented, what's NOT implemented, inspired-by patterns
+
+Stage Summary:
+- 22 files audited across config, prisma, hooks, scripts, and infra
+- Prisma: 11 active models, 2 ORPHANED models (KnowledgeEntity, KnowledgeRelation — 0 reads/writes confirmed in prior P1 audit), 1 model never used (Checkpoint referenced but mission resume P4-2 not implemented)
+- next.config.ts: minimal; standalone output, ignoreBuildErrors=false (P0-6 FIXED since earlier audit), reactStrictMode=FALSE (suspicious — should be true for production-quality React 19 codebase), NO security headers configured at next.config level (CSP/XFO only added via layout.tsx meta per worklog P6-5)
+- ESLint: 25+ rules DISABLED (any-explicit-any, no-unused-vars, exhaustive-deps, react-compiler, no-console, no-debugger, etc.) — this defeats the purpose of linting; matches "lint: clean" reported in worklog but masks real issues
+- Tailwind: dual setup detected — tailwind.config.ts (legacy v3 style with tailwindcss-animate plugin) + postcss.config.mjs using @tailwindcss/postcss v4 plugin; v4 normally doesn't need tailwind.config.ts, this is hybrid/vestigial
+- components.json: shadcn "new-york" style, neutral baseColor, lucide icons — standard shadcn/ui config
+- Caddyfile: port 81 reverse-proxy with dynamic XTransformPort query param support — unusual pattern for dynamic port routing
+- .gitignore: comprehensive (85 lines), correctly excludes /skills/, db/*.db, workspace/projects/, upload/, tool-results/, .env (but allows .env.example)
+- .env: 1 line only (DATABASE_URL — confirmed by .env.example); SDK keys must come from z-ai-web-dev-sdk auto-config (no explicit env vars for AI provider)
+- use-toast.ts: vanilla shadcn/ui implementation, TOAST_LIMIT=1 (only 1 toast at a time), TOAST_REMOVE_DELAY=1000000ms (~17min — effectively never auto-removes; reliance on dismiss)
+- use-mobile.ts: standard shadcn breakpoint hook (768px), returns !!undefined=false on SSR (no hydration mismatch)
+- mini-services/: EMPTY (only .gitkeep) — directory exists as a placeholder for future external service modules
+- skills/: 70+ EXTERNAL skill packages (ClawHub marketplace), not part of project source code; correctly excluded from tsconfig and eslint
+- tests/: 12 .test.ts files covering P1-A through P2-6 (tool-calling, workspace-b1/b2/b3, validation, task-graph-p1d/e, runtime-service-p3, missing-file-tools-p1-4, workspace-files-p2, workspace-project-p2-1, workspace-versioning-p2) + 3 .sh helpers for runtime container builds
+- Root scripts: 3 dev-server start variants (start-dev.sh simple, start-server.sh double-fork daemon, keep-alive.sh detached setsid+nohup) — duplication/redundancy
+- No Dockerfile, no CI config (no .github/, no .gitlab-ci.yml), no prettier config, no vitest/jest config (tests run via bun directly)
+
+---
+Task ID: FileAudit-Components
+Agent: Code Audit (MiMo Components)
+Task: Audit all files in src/components/mimo/
+
+Work Log:
+- Read all 23 files in src/components/mimo/
+- Produced detailed audit report (returned to user)
+
+Stage Summary:
+- 23 files audited (4952 LOC total)
+- Strongest files: files-panel.tsx (835 LOC, 4 sub-components — tree/editor/diff/history), chat-panel.tsx (772 LOC, composer + 3 sub-components), settings-dialog.tsx (647 LOC, 6 tabs), tool-call-card.tsx (390 LOC, diff viewer)
+- Weakest files: agent-icons.ts (42 LOC, pure icon map — fine), decisions-panel.tsx (55 LOC — no filter/search, no detail dialog), memory-panel.tsx (75 LOC — no type filter, no search, no edit)
+- 9 of 15 UIUX-Research-1 gaps closed: markdown quality, onboarding templates, in-chat diff, token HUD, settings depth, agent attribution, file mentions, version history, terminal panel
+- 6 gaps still open: plan-mode toggle, multi-tab panel stacking, Cline-style manual approval UI, mobile sheet drawer, Mermaid rendering, export-to-ZIP/Share/deploy-to-Netlify
+- Security: iframe sandbox="allow-scripts" enforced in both preview-panel.tsx and inline-preview.tsx (P0-3 fix preserved)
+- RTL/i18n: all panels respect getDirection(locale), but several panels hardcode English empty-state strings (tasks/agents/memory/decisions/skills/tools/timeline)
+- Notable dead state in chat-panel.tsx: imported `Bot` icon still used (line 357) but agent-icon path takes precedence; `Square` icon used only for Stop button
+- Files-panel.tsx is the most feature-complete panel (P2-2 + P2-4 + P2-5 + P2-6 all in one file: 4 components)
+
+---
+Task ID: FileAudit-Lib
+Agent: Code Audit (Lib/AI)
+Task: Audit all files in src/lib/
+
+Work Log:
+- Read all 24 files in src/lib/ (7 root files + 17 files in src/lib/ai/ and subdirs)
+- Produced detailed audit report covering purpose, what's implemented, what's NOT implemented, and inspired-by/origin for each file
+- Identified key gaps: ai-client.ts vs ai/types.ts type duplication, fake streaming in model.ts, knowledge.ts is keyword-LIKE (not GraphRAG), advanced.ts features disconnected from runtime, checkpoint resume loads but doesn't restore in-memory graph state, MCP protocol not implemented
+
+Stage Summary:
+- 24 files audited; 4 critical architectural observations:
+  1. Type duplication: ai-client.ts (frontend DB-row shapes) and ai/types.ts (backend execution shapes) overlap on StreamEvent but otherwise diverge — maintenance hazard
+  2. model.ts simulates streaming by chunking non-streaming response (ZAI SDK streaming broken)
+  3. knowledge.ts marketed as "Knowledge Graph" but is simple keyword LIKE search on KnowledgeEntity table — no vector search, no community detection, no GraphRAG-style hierarchical summarization
+  4. advanced.ts (9 advanced intelligence features: ToT, Self-Consistency, Debate, ExpeL, Persona, Dual-Stream Memory, World Model, Dynamic Agents, Contradiction Detection) is implemented but NOT wired into runtime.ts — dead code awaiting integration
+- Security is strong: workspace.ts has 7-layer project dir removal hardening, symlink-safe traversal, file versioning (P2-5); tool-caller.ts strips model-provided projectId/conversationId (defense-in-depth)
+- Runtime has self-repair loop (max 3 attempts), failure budget (5/mission), parallel task execution, checkpoint resume (best-effort)
+
+---
+Task ID: FileAudit-App
+Agent: Code Audit (App Routes)
+Task: Audit all files in src/app/
+
+Work Log:
+- Read all 26 files in src/app/ (3 top-level: layout.tsx, page.tsx, globals.css + 1 root API + 22 route files under /api/)
+- Produced detailed audit report covering: file path, purpose, what's implemented, what's NOT implemented, inspired-by/adapted-from for each file
+- Cross-referenced findings against worklog claims (P0-P6 phases, UIUX research)
+
+Stage Summary:
+- 26 files audited; 35 HTTP handlers total (GET/POST/PATCH/PUT/DELETE)
+- CRITICAL: Zero authentication across all 22 API routes; rate limiting only on /api/chat; no CSRF protection
+- CRITICAL: /api/preview/[id] interpolates artifact.name into <title> without HTML escaping (minor XSS risk)
+- Worklog accuracy issue: /api/test route claimed in P3-2 but DOES NOT EXIST in src/app/api/ (test() function exists in runtime-service.ts but unreachable via API)
+- Worklog accuracy issue: /api/conversations/[id]?action=export documented as implemented in P5-4 but is only a code COMMENT, no implementation
+- Chat route doesn't thread projectId / temperature / maxTokens despite UI controls (P2-1, UIUX-P1-5)
+- No abort signal handling in /api/chat — autonomous loop continues after client disconnect (token burn)
+- In-memory rate limiter (Map) doesn't sync across serverless instances
+- Missing routes: /api/tasks/[id], /api/agents/[name], /api/tools/[name], /api/skills/[name], /api/files/[id], /api/workspace/version/[id], /api/health
+- Missing Next 16 conventions: no loading.tsx, error.tsx, not-found.tsx
+- layout.tsx hardcodes lang="en" despite Arabic i18n support
+- /api/state duplicates recentExecutions + eventLog (same 10 rows, different field names)
+- /api/conversations/[id]?action=branch uses O(n²) filter (findIndex inside .filter); duplicate action has no db.$transaction
+- /api/projects/[id] DELETE removes dir BEFORE DB row (orphaned rows possible if DB delete fails)
+- /api/workspace/file has GET+PUT only — no DELETE/POST(rename)/PATCH despite P1-4 adding those WorkspaceService methods
+- WorkspaceService-backed routes (tree/file/history/diff/revert) properly use 7-layer validation and return diagnostics — strongest security surface in the API
+- Inspirations mapped: bolt.diy (chat streaming, preview), Vercel AI SDK, OpenHands (state, workspace, autonomous loop), LobeChat (conversations, fork/duplicate), AnythingLLM (agents, knowledge), GitHub (file contents, compare), VS Code (file tree)
