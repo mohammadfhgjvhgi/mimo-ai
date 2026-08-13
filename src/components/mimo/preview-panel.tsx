@@ -2,21 +2,17 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useMimo } from "@/lib/mimo-store";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import {
   Eye,
   RefreshCw,
   ExternalLink,
   Code2,
-  FileText,
   Monitor,
   Smartphone,
   Tablet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { t } from "@/lib/i18n";
 
 type ViewMode = "preview" | "code";
 type Device = "desktop" | "tablet" | "mobile";

@@ -66,6 +66,10 @@ const translations: TranslationDict = {
 
   // ─── Agents ───
   "agents.active": { ar: "نشط", en: "active" },
+  "agents.subtitle": {
+    ar: "12 وكيلاً متخصصاً. المُعلَّم منها نشط في التنفيذ الحالي.",
+    en: "12 specialized agents. Highlighted ones are active in the current execution.",
+  },
 
   // ─── Artifacts ───
   "artifacts.empty": {
@@ -84,6 +88,7 @@ const translations: TranslationDict = {
     ar: "لا قرارات معمارية بعد. يسجّل MiMo القرارات أثناء المهام التلقائية.",
     en: "No architectural decisions yet. MiMo logs ADRs during autonomous missions.",
   },
+  "decisions.by": { ar: "بواسطة", en: "by" },
 
   // ─── Timeline ───
   "timeline.empty": {
@@ -165,6 +170,12 @@ const translations: TranslationDict = {
   "files.modified": { ar: "المعدّل", en: "Modified" },
 
   "panel.knowledge": { ar: "المعرفة", en: "Knowledge" },
+
+  // ─── Skills ───
+  "skills.search.placeholder": {
+    ar: "ابحث في 69 مهارة...",
+    en: "Search 69 skills...",
+  },
 
   // ─── Terminal (P3-6) ───
   "panel.terminal": { ar: "الطرفية", en: "Terminal" },

@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { useMimo } from "@/lib/mimo-store";
 import { safeFetch } from "@/lib/safe-fetch";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Terminal as TerminalIcon, Play, Hammer, FlaskConical, Search, Type, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";

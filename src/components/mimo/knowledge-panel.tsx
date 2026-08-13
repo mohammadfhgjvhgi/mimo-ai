@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, BookOpen, FileText, Code, Brain, Wrench, Database, File } from "lucide-react";
+import { BookOpen, FileText, Code, Brain, Wrench, Database, File } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_ICONS: Record<string, typeof FileText> = {

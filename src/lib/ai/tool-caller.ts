@@ -15,7 +15,6 @@
 //   → FINAL RESPONSE
 // ===================================================================
 
-import type { ToolDefinition } from "./types";
 import { TOOLS, executeTool } from "./tools";
 import { getAgent } from "./agents";
 

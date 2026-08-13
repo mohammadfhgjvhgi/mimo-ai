@@ -8,6 +8,7 @@
 import { db } from "@/lib/db";
 import { retrieveMemories } from "./memory";
 import { getAgent } from "./agents";
+import { loadPersonaProfile, applyPersona } from "./advanced";
 import type { AgentRole, ChatMessage } from "./types";
 
 const MAX_HISTORY_MESSAGES = 20;
@@ -126,7 +127,19 @@ export async function assembleContext(
   if (extraSystem) {
     systemParts.push("\n\n" + extraSystem);
   }
-  const system = systemParts.join("");
+  let system = systemParts.join("");
+
+  // P-fix: wire advanced.ts feature Adaptive Personality
+  // Augment the system prompt with user-inferred persona profile.
+  // Wrapped in try/catch — persona load failure MUST NOT break context assembly.
+  try {
+    if (conversationId) {
+      const profile = await loadPersonaProfile(conversationId);
+      system = applyPersona(profile, system);
+    }
+  } catch {
+    // non-fatal — fall back to the unmodified system prompt
+  }
 
   // 6. Build messages
   const messages: ChatMessage[] = [

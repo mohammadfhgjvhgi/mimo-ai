@@ -1,6 +1,5 @@
 // /api/memory — GET (list, optional ?conversationId, ?type), POST (write)
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { writeMemory, getAllMemories } from "@/lib/ai/memory";
 
 export async function GET(req: NextRequest) {

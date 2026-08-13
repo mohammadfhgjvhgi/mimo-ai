@@ -5,14 +5,15 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getAgentIcon } from "./agent-icons";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 export function AgentsPanel() {
-  const { agents, activeAgents, isStreaming } = useMimo();
+  const { agents, activeAgents, locale } = useMimo();
 
   return (
     <div className="p-3 space-y-2">
       <div className="text-xs text-muted-foreground mb-1">
-        12 specialized agents. Highlighted ones are active in the current execution.
+        {t("agents.subtitle", locale)}
       </div>
       {agents.map((agent) => {
         const Icon = getAgentIcon(agent.icon);

@@ -47,7 +47,7 @@ export function useMentionAutocomplete(
   const { currentProjectId } = useMimo();
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
-  const [mentionStart, setMentionStart] = useState(-1);
+  const [, setMentionStart] = useState(-1);
   const [files, setFiles] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);

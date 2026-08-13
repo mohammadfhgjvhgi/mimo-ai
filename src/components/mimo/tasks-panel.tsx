@@ -3,10 +3,10 @@
 import { useMimo } from "@/lib/mimo-store";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, Circle, Loader2, AlertCircle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle2; color: string; label: string }> = {
   pending: { icon: Circle, color: "text-muted-foreground", label: "Pending" },
@@ -19,13 +19,13 @@ const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle2; color: string; 
 };
 
 export function TasksPanel() {
-  const { tasks, agents } = useMimo();
+  const { tasks, agents, locale } = useMimo();
 
   if (tasks.length === 0) {
     return (
       <div className="p-4 text-center text-sm text-muted-foreground">
         <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        No tasks yet. Start a conversation or enable Autonomous Mode to see the task DAG.
+        {t("tasks.empty", locale)}
       </div>
     );
   }

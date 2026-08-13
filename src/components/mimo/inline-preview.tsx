@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Eye, RefreshCw, ExternalLink, Code2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";

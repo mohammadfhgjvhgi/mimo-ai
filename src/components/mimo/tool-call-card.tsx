@@ -14,13 +14,9 @@ import {
   FileCode,
   FileText,
   FilePlus,
-  Scissors,
-  Pencil,
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 interface ActiveTool {
   name: string;
@@ -290,7 +286,7 @@ export function ToolCallCard({ tool, onViewFile }: ToolCallCardProps) {
 
 function DiffView({
   lines,
-  lang,
+  lang: _lang,
 }: {
   lines: Array<{ type: "add" | "remove" | "context"; text: string; lineNum?: number }>;
   lang: string;

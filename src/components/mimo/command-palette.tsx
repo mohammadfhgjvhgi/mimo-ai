@@ -27,7 +27,6 @@ import {
   Settings,
   Zap,
   Plus,
-  Search,
 } from "lucide-react";
 
 const COMMANDS = [

@@ -18,7 +18,7 @@ import type {
   Project,
   ToolInfo,
 } from "@/lib/ai-client";
-import type { Locale, Direction } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n";
 import { safeFetch, ApiError } from "@/lib/safe-fetch";
 
 interface ActiveTool {
@@ -508,7 +508,6 @@ export const useMimo = create<MimoStore>((set, get) => ({
           const currentPreview = get().pendingPreview;
           if (currentStreaming && currentStreaming.trim().length > 10) {
             const taskId = event.taskId as string;
-            const taskTitle = event.title as string;
             const agentName = event.agent as string;
             set((s) => ({
               streamingContent: "",

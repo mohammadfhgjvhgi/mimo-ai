@@ -119,10 +119,14 @@ export async function POST(
       },
     });
 
-    // Copy messages up to fromMessageId (or all if not specified)
-    const messages = fromMessageId
-      ? existing.messages.filter((m) => m.id !== fromMessageId && existing.messages.findIndex((x) => x.id === fromMessageId) > existing.messages.indexOf(m))
-      : existing.messages;
+    // P-fix: O(n) branch — build index map instead of O(n²) findIndex
+    const sorted = [...existing.messages].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    const cutoffIndex = fromMessageId
+      ? sorted.findIndex((m) => m.id === fromMessageId)
+      : sorted.length;
+    const messages = cutoffIndex >= 0 ? sorted.slice(0, cutoffIndex) : sorted;
 
     for (const msg of messages) {
       await db.message.create({
@@ -138,6 +142,29 @@ export async function POST(
       });
     }
     return NextResponse.json({ conversation: branch });
+  }
+
+  if (action === "export") {
+    // P-fix: Export conversation as JSON (was documented in P5-4 but missing)
+    const full = await db.conversation.findUnique({
+      where: { id },
+      include: {
+        messages: { orderBy: { createdAt: "asc" } },
+        tasks: { orderBy: { order: "asc" } },
+        artifacts: { orderBy: { createdAt: "desc" } },
+        decisions: { orderBy: { createdAt: "desc" } },
+        memories: { take: 50, orderBy: { createdAt: "desc" } },
+      },
+    });
+    if (!full) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return new Response(JSON.stringify(full, null, 2), {
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Disposition": `attachment; filename="conversation-${id}.json"`,
+      },
+    });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

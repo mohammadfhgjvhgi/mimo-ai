@@ -101,6 +101,16 @@ export async function chat(
         thinking: { type: options.thinking ? "enabled" : "disabled" },
       };
 
+      // P-fix: honor temperature/maxTokens from ChatOptions.
+      // When undefined, the key is omitted entirely → ZAI SDK applies model defaults.
+      // This is the terminal hop of the /api/chat → runtime → model.ts wiring.
+      if (options.temperature !== undefined) {
+        requestBody.temperature = options.temperature;
+      }
+      if (options.maxTokens !== undefined) {
+        requestBody.max_tokens = options.maxTokens;
+      }
+
       // Add tools if provided (native function calling)
       if (options.tools && options.tools.length > 0) {
         requestBody.tools = options.tools;

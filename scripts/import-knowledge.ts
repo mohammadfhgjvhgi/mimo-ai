@@ -6,6 +6,7 @@
 // Categorizes: architecture, research, skill, code, spec, other
 // ===================================================================
 
+/* eslint-disable no-console -- CLI importer script, console output is intentional */
 import { promises as fs } from "fs";
 import path from "path";
 import { db } from "@/lib/db";

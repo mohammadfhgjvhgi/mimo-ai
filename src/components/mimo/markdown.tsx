@@ -143,7 +143,7 @@ function extractText(node: React.ReactNode): string {
 function CodeBlockView({
   code,
   lang,
-  isDark,
+  isDark: _isDark,
   children,
 }: {
   code: string;

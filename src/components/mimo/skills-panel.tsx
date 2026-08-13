@@ -5,9 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 export function SkillsPanel() {
-  const { skills, skillSearchQuery, setSkillSearchQuery, loadSkills } = useMimo();
+  const { skills, skillSearchQuery, setSkillSearchQuery, loadSkills, locale } = useMimo();
 
   return (
     <div className="p-3 space-y-2">
@@ -19,7 +20,7 @@ export function SkillsPanel() {
             setSkillSearchQuery(e.target.value);
             loadSkills(e.target.value);
           }}
-          placeholder="Search 69 skills..."
+          placeholder={t("skills.search.placeholder", locale)}
           className="h-8 pl-7 text-xs"
         />
       </div>

@@ -13,10 +13,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// P6-5: Security headers
+// P6-5: Security headers — tightened CSP (removed unsafe-eval, kept unsafe-inline for Turbopack HMR)
 export const headers = () => {
   return {
-    "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self';",
+    // Note: 'unsafe-inline' is required for Next.js Turbopack HMR style injection.
+    // 'unsafe-eval' removed — was only needed by old bundlers.
+    "Content-Security-Policy":
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self';",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "X-XSS-Protection": "1; mode=block",
@@ -27,8 +30,16 @@ export const headers = () => {
 
 export const metadata: Metadata = {
   title: "MiMo AI — Engineering Intelligence Platform",
-  description: "Autonomous AI engineering system with 12 agents, 18 tools, and 69 skills. Plan, research, build, test, and deliver.",
-  keywords: ["MiMo AI", "AI Engineering", "Autonomous Agents", "Multi-Agent", "Next.js", "TypeScript"],
+  description:
+    "Autonomous AI engineering system with 12 agents, 18 tools, and 69 skills. Plan, research, build, test, and deliver.",
+  keywords: [
+    "MiMo AI",
+    "AI Engineering",
+    "Autonomous Agents",
+    "Multi-Agent",
+    "Next.js",
+    "TypeScript",
+  ],
   authors: [{ name: "MiMo AI" }],
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
@@ -51,8 +62,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Default lang/dir — the client-side Workspace component will update these
+  // based on user locale preference. suppressHydrationWarning allows the mismatch.
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" dir="ltr" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >

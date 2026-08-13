@@ -4,15 +4,16 @@ import { useMimo } from "@/lib/mimo-store";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Gavel } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 export function DecisionsPanel() {
-  const { decisions } = useMimo();
+  const { decisions, locale } = useMimo();
 
   if (decisions.length === 0) {
     return (
       <div className="p-4 text-center text-sm text-muted-foreground">
         <Gavel className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        No architectural decisions yet. MiMo logs ADRs during autonomous missions.
+        {t("decisions.empty", locale)}
       </div>
     );
   }
@@ -34,7 +35,9 @@ export function DecisionsPanel() {
             >
               {dec.status}
             </Badge>
-            <span className="text-[10px] text-muted-foreground">by {dec.decidedBy}</span>
+            <span className="text-[10px] text-muted-foreground">
+              {t("decisions.by", locale)} {dec.decidedBy}
+            </span>
           </div>
           <div className="text-sm font-semibold leading-tight">{dec.title}</div>
           <div className="text-xs text-muted-foreground">

@@ -1,7 +1,7 @@
 // /api/preview/[id] — Serve artifact content for browser preview
 // Returns HTML content with proper Content-Type for iframe embedding
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -30,6 +30,16 @@ export async function GET(
   const format = artifact.format.toLowerCase();
   const name = artifact.name.toLowerCase();
 
+  // XSS fix: HTML-escape the artifact name before interpolating into <title>
+  const escapeHtml = (str: string) =>
+    str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#x27;");
+  const safeName = escapeHtml(artifact.name);
+
   // Determine content type
   let contentType = "text/plain";
   let body = artifact.content;
@@ -43,7 +53,7 @@ export async function GET(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${artifact.name}</title>
+<title>${safeName}</title>
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 2rem; background: #0a0a0a; color: #e5e5e5; }
   * { box-sizing: border-box; }
@@ -78,6 +88,8 @@ ${body}
       "Content-Type": contentType,
       "Cache-Control": "no-cache, no-transform",
       "X-Content-Type-Options": "nosniff",
+      // P-hardening: Prevent inline script execution in served HTML previews
+      "Content-Security-Policy": "default-src 'self' 'unsafe-inline' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;",
     },
   });
 }

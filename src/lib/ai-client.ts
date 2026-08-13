@@ -174,18 +174,5 @@ export interface ToolInfo {
   timeoutMs: number;
 }
 
-export interface StreamEvent {
-  type:
-    | "start"
-    | "delta"
-    | "tool"
-    | "agent"
-    | "memory"
-    | "artifact"
-    | "task"
-    | "decision"
-    | "preview"
-    | "end"
-    | "error";
-  [key: string]: unknown;
-}
+// P-fix: Re-export StreamEvent from ai/types.ts to avoid type duplication
+export type { StreamEvent } from "./ai/types";

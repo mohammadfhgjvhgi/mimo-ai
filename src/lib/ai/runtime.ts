@@ -8,7 +8,7 @@
 import { db } from "@/lib/db";
 import { chat, generateStructured } from "./model";
 import { assembleContext } from "./context";
-import { pickAgentForMessage, getAgent } from "./agents";
+import { getAgent } from "./agents";
 import { writeMemory } from "./memory";
 import { executeResponse } from "./execution-engine";
 import {
@@ -34,6 +34,13 @@ import {
   updateTaskStatus,
   getGraphState,
 } from "./task-graph";
+import {
+  extractImplicitPreferences,
+  consolidateMemory,
+  resolveEntities,
+  detectContradictions,
+  extractLessons,
+} from "./advanced";
 import type {
   AgentRole,
   ExecutionContext,
@@ -87,6 +94,10 @@ export interface ExecuteTaskInput {
   userMessage: string;
   autonomous?: boolean;
   projectId?: string; // P2-1: system-injected from Conversation.projectId
+  // P-fix: wire temperature/maxTokens from /api/chat → runtime → model.ts.
+  // Undefined means "use model default".
+  temperature?: number;
+  maxTokens?: number;
 }
 
 export interface ExecuteTaskResult {
@@ -195,6 +206,10 @@ export async function executeTask(
       {
         system: context.system,
         tools: toolSchemas.length > 0 ? toolSchemas : undefined,
+        // P-fix: pass temperature/maxTokens through to the model gateway.
+        // When undefined, chat() leaves them unset → ZAI SDK applies model defaults.
+        temperature: input.temperature,
+        maxTokens: input.maxTokens,
       }
     );
 
@@ -309,6 +324,8 @@ export async function executeTask(
 
           const followUp = await chat(followUpMessages, {
             system: context.system + "\n\nYou just received tool results. Synthesize them into a complete response for the user.",
+            temperature: input.temperature,
+            maxTokens: input.maxTokens,
           });
 
           responseContent = followUp.content;
@@ -373,6 +390,11 @@ export async function executeTask(
       // non-fatal
     }
   }
+
+  // P-fix: wire advanced.ts feature Contradiction Detection
+  // Fire-and-forget — scan memories for contradictions after a new memory was written.
+  // Errors are silently swallowed so they never break the main execution flow.
+  void detectContradictions(conversationId).catch(() => {});
 
   // ─── REAL EXECUTION ENGINE ──────────────────────────────────────
   // Parse the model's response for code blocks and file creation intents,
@@ -545,6 +567,8 @@ export async function executeTask(
   // If validation fails, task becomes FAILED (not completed).
   // P4-1: Self-Repair Loop — when validation fails, attempt diagnosis + fix + retest
   // P4-5: Failure Budget — tracked per mission in runAutonomousLoop
+  // P-fix: track final success state across validation + self-repair for downstream hooks
+  let taskSucceeded = taskValidation.passed;
   if (taskId) {
     if (taskValidation.passed) {
       await db.task.update({
@@ -590,7 +614,11 @@ export async function executeTask(
             debugContext.messages
               .filter((m) => m.role !== "tool")
               .map((m) => ({ role: m.role as "system" | "user" | "assistant", content: m.content })),
-            { system: debugContext.system }
+            {
+              system: debugContext.system,
+              temperature: input.temperature,
+              maxTokens: input.maxTokens,
+            }
           );
 
           repairedContent = repairResult.content;
@@ -654,6 +682,8 @@ export async function executeTask(
       }
 
       if (repairSuccess) {
+        // P-fix: reflect that the self-repair eventually succeeded
+        taskSucceeded = true;
         await db.task.update({
           where: { id: taskId },
           data: {
@@ -729,6 +759,18 @@ export async function executeTask(
     } catch {
       // Non-fatal — knowledge extraction is best-effort
     }
+
+    // P-fix: wire advanced.ts feature Entity Resolution
+    // Fire-and-forget — merge duplicate entities in the knowledge graph.
+    // Silently swallowed errors so they never break the main execution flow.
+    void resolveEntities(projectId).catch(() => {});
+  }
+
+  // P-fix: wire advanced.ts feature Dual-Stream Memory
+  // After a successful task completion, infer implicit preferences from
+  // the user's past messages. Fire-and-forget — never blocks the response.
+  if (taskSucceeded) {
+    void extractImplicitPreferences(conversationId).catch(() => {});
   }
 
   return {
@@ -758,18 +800,27 @@ export interface AutonomousRunResult {
  * Returns when all tasks complete or one fails max retries.
  */
 export async function runAutonomousLoop(
-  input: { conversationId: string; goal: string; resumeFromCheckpoint?: boolean },
+  input: {
+    conversationId: string;
+    goal: string;
+    resumeFromCheckpoint?: boolean;
+    // P-fix: wire temperature/maxTokens from /api/chat → runtime → model.ts.
+    // Undefined means "use model default".
+    temperature?: number;
+    maxTokens?: number;
+  },
   onEvent?: (event: StreamEvent) => void
 ): Promise<AutonomousRunResult> {
   const start = Date.now();
   const { conversationId, goal } = input;
 
-  // P4-2: Checkpoint Resume — check if there's a previous checkpoint
+  // P4-2: Checkpoint Resume — load previous checkpoint and skip completed tasks
+  const completedTaskIdsFromCheckpoint = new Set<string>();
   if (input.resumeFromCheckpoint) {
     try {
       const { loadLatestCheckpoint } = await import("./checkpoint");
       const checkpoint = await loadLatestCheckpoint(conversationId);
-      if (checkpoint) {
+      if (checkpoint && checkpoint.taskGraph?.tasks) {
         await logExecution({
           conversationId,
           agentName: "orchestrator",
@@ -777,6 +828,20 @@ export async function runAutonomousLoop(
           message: `Resuming mission from checkpoint (created ${checkpoint.createdAt.toISOString()})`,
         });
         onEvent?.({ type: "agent", agent: "orchestrator", phase: "resume" });
+        // Collect already-completed task IDs so we skip them during execution
+        for (const task of checkpoint.taskGraph.tasks) {
+          if (task.status === "completed") {
+            completedTaskIdsFromCheckpoint.add(task.id);
+          }
+        }
+        if (completedTaskIdsFromCheckpoint.size > 0) {
+          await logExecution({
+            conversationId,
+            agentName: "orchestrator",
+            phase: "plan",
+            message: `Skipping ${completedTaskIdsFromCheckpoint.size} already-completed tasks from checkpoint`,
+          });
+        }
       }
     } catch {
       // Non-fatal — resume is best-effort
@@ -984,6 +1049,20 @@ export async function runAutonomousLoop(
       if (!task) return true;
       const planTask = plan.tasks[taskRecords.indexOf(task)];
 
+      // P4-2: Skip tasks already completed in a previous checkpoint
+      if (completedTaskIdsFromCheckpoint.has(taskId)) {
+        updateTaskStatus(graph, taskId, "completed");
+        await logExecution({
+          conversationId,
+          taskId,
+          agentName: "orchestrator",
+          phase: "complete",
+          message: `Skipped (already completed in checkpoint): ${task.title}`,
+          status: "success",
+        });
+        return true;
+      }
+
       // Mark as running in graph
       updateTaskStatus(graph, taskId, "running");
 
@@ -1008,6 +1087,10 @@ export async function runAutonomousLoop(
               agentName: planTask.assignedAgent,
               userMessage: `${task.title}\n\nObjective: ${task.objective ?? task.title}\n\nExpected output: ${task.expectedOutput ?? "Complete response"}`,
               autonomous: true,
+              // P-fix: propagate temperature/maxTokens so every task in the
+              // autonomous mission honors the user's model overrides.
+              temperature: input.temperature,
+              maxTokens: input.maxTokens,
             },
             onEvent
           );
@@ -1108,7 +1191,7 @@ export async function runAutonomousLoop(
     };
 
     // Execute all ready tasks in parallel (P4-4)
-    const taskResults = await Promise.all(readyTaskIds.map(executeSingleTask));
+    await Promise.all(readyTaskIds.map(executeSingleTask));
 
     // If any task failed, stop the mission
     if (!success) break;
@@ -1170,6 +1253,15 @@ export async function runAutonomousLoop(
   });
 
   onEvent?.({ type: "end", summary, success });
+
+  // P-fix: wire advanced.ts feature Offline Consolidation + ExpeL lessons
+  // After the mission's final decision is written, fire two background jobs:
+  //  - consolidateMemory: promote high-importance short-term → long-term, extract patterns
+  //  - extractLessons:    ExpeL-style transferable lessons from completed tasks
+  // Both are fire-and-forget; errors are silently swallowed so they never affect the
+  // already-completed mission's return value.
+  void consolidateMemory(conversationId).catch(() => {});
+  void extractLessons(conversationId).catch(() => {});
 
   return {
     planTasks: plan.tasks,

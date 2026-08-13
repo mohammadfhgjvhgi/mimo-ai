@@ -4,6 +4,7 @@ import { useMimo } from "@/lib/mimo-store";
 import { Badge } from "@/components/ui/badge";
 import { Activity, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 import { useState } from "react";
 import {
   BarChart,
@@ -47,14 +48,14 @@ const LEVEL_COLORS: Record<string, string> = {
 };
 
 export function TimelinePanel() {
-  const { executions } = useMimo();
+  const { executions, locale } = useMimo();
   const [view, setView] = useState<"list" | "chart">("list");
 
   if (executions.length === 0) {
     return (
       <div className="p-4 text-center text-sm text-muted-foreground">
         <Activity className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        No execution logs yet. MiMo logs every plan, execute, observe, and validate step.
+        {t("timeline.empty", locale)}
       </div>
     );
   }

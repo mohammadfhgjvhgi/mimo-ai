@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { useMimo } from "@/lib/mimo-store";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card } from "@/components/ui/card";
 import {
   Send,
   Loader2,
@@ -158,6 +157,13 @@ export function ChatPanel() {
 
     try {
       abortRef.current = new AbortController();
+      // P-fix: Read temperature/maxTokens from localStorage (set by Settings dialog)
+      const temperature = typeof window !== "undefined"
+        ? Number(localStorage.getItem("mimo.temperature")) || undefined
+        : undefined;
+      const maxTokens = typeof window !== "undefined"
+        ? Number(localStorage.getItem("mimo.maxTokens")) || undefined
+        : undefined;
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -166,6 +172,8 @@ export function ChatPanel() {
           message: msg,
           agentName: selectedAgent,
           autonomous: useAutonomous,
+          ...(temperature !== undefined ? { temperature } : {}),
+          ...(maxTokens !== undefined ? { maxTokens } : {}),
         }),
         signal: abortRef.current.signal,
       });
@@ -252,6 +260,60 @@ export function ChatPanel() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // ─── @-mention popover keyboard navigation ───
+    // When the mention popover is open, intercept ArrowUp/ArrowDown/Enter/Escape/Tab
+    // so the user can navigate the suggestion list without losing focus on the textarea.
+    if (mention.mentionOpen) {
+      // Compute the filtered file list using the same logic as MentionPopover
+      // (filter to files only, match query case-insensitively, cap at 20).
+      const q = mention.mentionQuery.toLowerCase();
+      const filteredFiles = mention.files
+        .filter((f) => f.type === "file")
+        .filter((f) => (q ? f.path.toLowerCase().includes(q) : true))
+        .slice(0, 20);
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        mention.setHighlightIndex((i) => Math.min(i + 1, filteredFiles.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        mention.setHighlightIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        // Select the highlighted file (if any) instead of sending the message.
+        if (filteredFiles.length > 0) {
+          e.preventDefault();
+          const idx = Math.min(mention.highlightIndex, filteredFiles.length - 1);
+          const target = filteredFiles[idx];
+          if (target) {
+            void mention.insertMention(target.path);
+          }
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        mention.closeMention();
+        return;
+      }
+      if (e.key === "Tab") {
+        // Tab also selects the highlighted file (autocomplete-style).
+        if (filteredFiles.length > 0) {
+          e.preventDefault();
+          const idx = Math.min(mention.highlightIndex, filteredFiles.length - 1);
+          const target = filteredFiles[idx];
+          if (target) {
+            void mention.insertMention(target.path);
+          }
+        }
+        return;
+      }
+    }
+
+    // ─── Default: Enter sends, Shift+Enter inserts newline ───
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
@@ -342,7 +404,7 @@ export function ChatPanel() {
               <ToolCallCard
                 key={`${tool.name}-${tool.timestamp}-${i}`}
                 tool={tool}
-                onViewFile={(filename) => {
+                onViewFile={(_filename) => {
                   setActivePanel("files");
                 }}
               />

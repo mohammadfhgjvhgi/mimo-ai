@@ -19,7 +19,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import type { WorkspaceResult } from "./workspace";
-import { SANDBOX_ROOT, UPLOAD_DIR } from "./workspace";
+import { SANDBOX_ROOT } from "./workspace";
 
 // ─── Types ──────────────────────────────────────────────────────────
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- CLI diagnostic script, console output is intentional */
 import { PrismaClient } from "@prisma/client";
 const p = new PrismaClient();
 

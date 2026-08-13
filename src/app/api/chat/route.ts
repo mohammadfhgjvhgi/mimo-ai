@@ -7,40 +7,19 @@ import { db } from "@/lib/db";
 import { executeTask, runAutonomousLoop } from "@/lib/ai/runtime";
 import { pickAgentForMessage } from "@/lib/ai/agents";
 import type { AgentRole, StreamEvent } from "@/lib/ai/types";
+import { checkRateLimit, getClientIP } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
-
-// P6-5: Rate limiting — max 10 requests per minute per IP
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 10;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ip: string): { allowed: boolean; remaining: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return { allowed: true, remaining: RATE_LIMIT_MAX - 1 };
-  }
-
-  if (entry.count >= RATE_LIMIT_MAX) {
-    return { allowed: false, remaining: 0 };
-  }
-
-  entry.count++;
-  return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count };
-}
 
 function sseEncode(event: StreamEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
 export async function POST(req: NextRequest) {
-  // P6-5: Rate limiting
-  const ip = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "unknown";
-  const rateCheck = checkRateLimit(ip);
+  // P-fix: Rate limiting (shared limiter)
+  const ip = getClientIP(req);
+  const rateCheck = checkRateLimit("chat", ip);
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: "Rate limit exceeded. Maximum 10 requests per minute." },
@@ -57,6 +36,8 @@ export async function POST(req: NextRequest) {
     agentName?: AgentRole;
     autonomous?: boolean;
     projectType?: string;
+    temperature?: number;
+    maxTokens?: number;
   };
 
   try {
@@ -76,6 +57,15 @@ export async function POST(req: NextRequest) {
   if (body.conversationId && typeof body.conversationId !== "string") {
     return NextResponse.json({ error: "conversationId must be a string" }, { status: 400 });
   }
+  // Validate temperature/maxTokens if provided
+  const temperature =
+    typeof body.temperature === "number" && body.temperature >= 0 && body.temperature <= 2
+      ? body.temperature
+      : undefined;
+  const maxTokens =
+    typeof body.maxTokens === "number" && body.maxTokens >= 1024 && body.maxTokens <= 32768
+      ? Math.floor(body.maxTokens)
+      : undefined;
 
   // Get or create conversation
   let conversationId = body.conversationId;
@@ -114,26 +104,51 @@ export async function POST(req: NextRequest) {
 
   // ─── Streaming response ─────────────────────────────────────────
   const encoder = new TextEncoder();
+  // Abort signal: stop generation when client disconnects (prevents wasted compute)
+  const abortController = new AbortController();
+  const abortSignal = abortController.signal;
+
   const stream = new ReadableStream({
-    async start(controller) {
+    start(controller) {
+      // Listen for client disconnect
+      abortSignal.addEventListener("abort", () => {
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
+      });
+    },
+    async pull(controller) {
       const send = (event: StreamEvent) => {
-        controller.enqueue(encoder.encode(sseEncode(event)));
+        if (!abortSignal.aborted) {
+          controller.enqueue(encoder.encode(sseEncode(event)));
+        }
       };
 
       try {
         send({ type: "start", conversationId, agent: agentName, isNewConversation });
 
         if (autonomous) {
-          // Run autonomous loop — runAutonomousLoop already sends "end" event
-          // Don't send a second "end" event here (causes duplicate key error)
-          await runAutonomousLoop({ conversationId, goal: message }, send);
+          await runAutonomousLoop(
+            {
+              conversationId,
+              goal: message,
+              // P-fix: pass temperature/maxTokens from /api/chat → runAutonomousLoop
+              temperature,
+              maxTokens,
+            },
+            send
+          );
         } else {
-          // Single task execution with streaming
           const result = await executeTask(
             {
               conversationId,
               agentName,
               userMessage: message,
+              // P-fix: pass temperature/maxTokens from /api/chat → executeTask
+              temperature,
+              maxTokens,
             },
             send
           );
@@ -150,11 +165,20 @@ export async function POST(req: NextRequest) {
           });
         }
       } catch (err) {
+        if (abortSignal.aborted) return; // client gone — don't emit
         const msg = err instanceof Error ? err.message : String(err);
         send({ type: "error", message: msg });
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
       }
+    },
+    cancel() {
+      // Client disconnected — abort the generation
+      abortController.abort();
     },
   });
 

@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 const TYPE_COLORS: Record<string, string> = {
   working: "bg-blue-500",
@@ -19,13 +20,13 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export function MemoryPanel() {
-  const { memories } = useMimo();
+  const { memories, locale } = useMimo();
 
   if (memories.length === 0) {
     return (
       <div className="p-4 text-center text-sm text-muted-foreground">
         <Brain className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        No memories yet. MiMo stores memories across 9 types as it works.
+        {t("memory.empty", locale)}
       </div>
     );
   }
