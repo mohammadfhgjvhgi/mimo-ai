@@ -1,5 +1,6 @@
 "use client"
 
+// P-fix: recharts v3 type compatibility — vendor file uses `any` casts for v3 changes
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
@@ -104,6 +105,7 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
+// P-fix: recharts v3 changed Tooltip/Legend prop types; use looser typing for vendor compat
 function ChartTooltipContent({
   active,
   payload,
@@ -118,14 +120,8 @@ function ChartTooltipContent({
   color,
   nameKey,
   labelKey,
-}: React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
-  React.ComponentProps<"div"> & {
-    hideLabel?: boolean
-    hideIndicator?: boolean
-    indicator?: "line" | "dot" | "dashed"
-    nameKey?: string
-    labelKey?: string
-  }) {
+}: // P-fix: recharts v3 removed payload/label from Tooltip props type — use any
+any) {
   const { config } = useChart()
 
   const tooltipLabel = React.useMemo(() => {
@@ -256,11 +252,8 @@ function ChartLegendContent({
   payload,
   verticalAlign = "bottom",
   nameKey,
-}: React.ComponentProps<"div"> &
-  Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
-    hideIcon?: boolean
-    nameKey?: string
-  }) {
+}: // P-fix: recharts v3 changed LegendProps — use any
+any) {
   const { config } = useChart()
 
   if (!payload?.length) {

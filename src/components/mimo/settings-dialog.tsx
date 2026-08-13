@@ -38,7 +38,6 @@ import {
   Shield,
   Clock,
   BookOpen,
-  Github,
   ExternalLink,
   type LucideIcon,
 } from "lucide-react";
@@ -592,7 +591,7 @@ export function SettingsDialog() {
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 p-2 rounded-md border text-xs hover:bg-accent transition-colors"
                   >
-                    <Github className="w-3.5 h-3.5 text-muted-foreground" />
+                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
                     <span className="flex-1">GitHub</span>
                     <ExternalLink className="w-3 h-3 text-muted-foreground" />
                   </a>

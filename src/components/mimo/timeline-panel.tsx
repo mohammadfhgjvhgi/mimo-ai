@@ -117,7 +117,7 @@ export function TimelinePanel() {
                   borderRadius: "4px",
                   fontSize: "11px",
                 }}
-                formatter={(value: number) => [`${value}s`, "Duration"]}
+                formatter={(value) => [`${value}s`, "Duration"]}
               />
               <Bar dataKey="duration" radius={[0, 3, 3, 0]}>
                 {phaseData.map((entry, i) => (
