@@ -12,7 +12,7 @@ export function AgentsPanel() {
   return (
     <div className="p-3 space-y-2">
       <div className="text-xs text-muted-foreground mb-1">
-        10 specialized agents. Highlighted ones are active in the current execution.
+        12 specialized agents. Highlighted ones are active in the current execution.
       </div>
       {agents.map((agent) => {
         const Icon = getAgentIcon(agent.icon);

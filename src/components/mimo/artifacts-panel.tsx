@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMimo } from "@/lib/mimo-store";
 import { Card } from "@/components/ui/card";
+import { t } from "@/lib/i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,14 +23,14 @@ const TYPE_ICONS: Record<string, typeof FileText> = {
 };
 
 export function ArtifactsPanel() {
-  const { artifacts } = useMimo();
+  const { artifacts, locale } = useMimo();
   const [selected, setSelected] = useState<(typeof artifacts)[0] | null>(null);
 
   if (artifacts.length === 0) {
     return (
       <div className="p-4 text-center text-sm text-muted-foreground">
         <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-        No artifacts yet. MiMo will create code, docs, and reports as it works.
+        {locale === "ar" ? "لا منتجات بعد. سينشئ MiMo كودًا ومستندات وتقارير أثناء عمله." : "No artifacts yet. MiMo will create code, docs, and reports as it works."}
       </div>
     );
   }

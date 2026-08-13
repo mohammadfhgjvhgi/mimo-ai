@@ -11,6 +11,11 @@ import {
   Eye,
   FileText,
   BrainCircuit,
+  Building2,
+  ScanSearch,
+  Wand2,
+  Database,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,6 +30,11 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Eye,
   FileText,
   BrainCircuit,
+  Building2,
+  ScanSearch,
+  Wand2,
+  Database,
+  ClipboardList,
 };
 
 export function getAgentIcon(name: string): LucideIcon {

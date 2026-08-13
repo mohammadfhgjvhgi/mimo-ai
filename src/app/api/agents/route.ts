@@ -1,4 +1,4 @@
-// /api/agents — GET list all 10 agents
+// /api/agents — GET list all 12 agents
 import { NextResponse } from "next/server";
 import { listAgents } from "@/lib/ai/agents";
 

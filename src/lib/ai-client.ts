@@ -34,6 +34,9 @@ export interface Message {
   tokenOutput: number;
   durationMs: number;
   createdAt: string;
+  previewUrl?: string | null;
+  previewName?: string | null;
+  artifacts?: string[];
 }
 
 export interface Conversation {
@@ -140,7 +143,35 @@ export interface SystemState {
   knowledgeEntries: number;
   skills: number;
   agents: number;
+  tools: number;
+  projects: number;
   recentExecutions: ExecutionLog[];
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  type: string;
+  status: string;
+  goals: string | null;
+  techStack: string | null;
+  requirements: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    conversations: number;
+    entities: number;
+    memories: number;
+  };
+}
+
+export interface ToolInfo {
+  name: string;
+  description: string;
+  riskLevel: string;
+  inputSchema: Record<string, unknown>;
+  timeoutMs: number;
 }
 
 export interface StreamEvent {
@@ -153,6 +184,7 @@ export interface StreamEvent {
     | "artifact"
     | "task"
     | "decision"
+    | "preview"
     | "end"
     | "error";
   [key: string]: unknown;

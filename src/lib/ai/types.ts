@@ -5,14 +5,16 @@
 export type AgentRole =
   | "orchestrator"
   | "researcher"
-  | "planner"
   | "developer"
   | "debugger"
   | "qa"
   | "security"
   | "reviewer"
   | "documentation"
-  | "knowledge";
+  | "knowledge"
+  | "architect"
+  | "database"
+  | "requirements";
 
 export type MemoryType =
   | "working"
@@ -103,6 +105,7 @@ export interface StreamEvent {
     | "artifact"
     | "task"
     | "decision"
+    | "preview"
     | "end"
     | "error";
   [key: string]: unknown;
@@ -115,7 +118,7 @@ export interface PlanTask {
   objective?: string;
   expectedOutput?: string;
   priority?: number;
-  dependencies?: string[];
+  dependencies?: number[]; // indices of tasks this depends on (0-based)
 }
 
 export interface ExecutionContext {
@@ -123,6 +126,7 @@ export interface ExecutionContext {
   taskId?: string;
   agentName: AgentRole;
   userMessage: string;
+  projectId?: string; // P2-1: system-injected from Conversation.projectId
   toolsUsed: string[];
   artifactsCreated: string[];
   memoriesWritten: string[];

@@ -15,14 +15,20 @@ import {
   User,
   Wrench,
   Sparkles,
-  ChevronDown,
+  Square,
+  Copy,
+  Check,
 } from "lucide-react";
 import { getAgentIcon } from "./agent-icons";
+import { Markdown } from "./markdown";
+import { InlinePreview } from "./inline-preview";
 import { cn } from "@/lib/utils";
+import { t, getDirection } from "@/lib/i18n";
 
 export function ChatPanel() {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const {
     messages,
@@ -30,17 +36,22 @@ export function ChatPanel() {
     streamingContent,
     activeTools,
     activeAgents,
+    pendingPreview,
     autonomousMode,
     selectedAgent,
     agents,
     currentConversation,
+    locale,
     startStreaming,
     handleStreamEvent,
     endStreaming,
     setError,
     setAutonomousMode,
     setSelectedAgent,
+    resetStreaming,
   } = useMimo();
+
+  const dir = getDirection(locale);
 
   // Auto-scroll to bottom on new content
   useEffect(() => {
@@ -48,6 +59,20 @@ export function ChatPanel() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, streamingContent, activeTools]);
+
+  const stop = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    // Save what we have so far as a message
+    const current = useMimo.getState().streamingContent;
+    if (current.trim()) {
+      endStreaming(current);
+    } else {
+      resetStreaming();
+    }
+  };
 
   const send = async () => {
     if (!input.trim() || isStreaming) return;
@@ -74,6 +99,7 @@ export function ChatPanel() {
     startStreaming();
 
     try {
+      abortRef.current = new AbortController();
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,11 +109,25 @@ export function ChatPanel() {
           agentName: selectedAgent,
           autonomous: autonomousMode,
         }),
+        signal: abortRef.current.signal,
       });
 
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err);
+      // Check if server returned HTML (server down / error page)
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!res.ok || !contentType.includes("text/event-stream")) {
+        // Try to get error message
+        let errMsg = `HTTP ${res.status}`;
+        if (contentType.includes("application/json")) {
+          try {
+            const errData = await res.json();
+            errMsg = errData.error ?? errMsg;
+          } catch {
+            // ignore
+          }
+        } else if (contentType.includes("text/html")) {
+          errMsg = "Server returned HTML instead of SSE stream. The dev server may be down or misconfigured.";
+        }
+        throw new Error(errMsg);
       }
 
       if (!res.body) throw new Error("No response body");
@@ -128,10 +168,29 @@ export function ChatPanel() {
         }
       }
     } catch (err) {
+      // Don't show error if user aborted (pressed Stop)
+      if (err instanceof Error && (err.name === "AbortError" || err.message.includes("aborted"))) {
+        // User stopped — keep partial content if any
+        const current = useMimo.getState().streamingContent;
+        if (current.trim()) {
+          endStreaming(current);
+        } else {
+          resetStreaming();
+        }
+        return;
+      }
+      // Network/model errors — show but don't crash
       const msg = err instanceof Error ? err.message : "Stream failed";
-      setError(msg);
-      endStreaming("");
+      // Don't show "Failed to fetch" as error if we already have content
+      const hasContent = useMimo.getState().streamingContent.trim().length > 0;
+      if (hasContent && (msg.includes("Failed to fetch") || msg.includes("network"))) {
+        endStreaming(useMimo.getState().streamingContent);
+      } else {
+        setError(msg);
+        endStreaming("");
+      }
     }
+    abortRef.current = null;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -153,10 +212,10 @@ export function ChatPanel() {
           </div>
           <div>
             <h2 className="text-sm font-semibold leading-tight">
-              {currentConversation?.title ?? "New Conversation"}
+              {currentConversation?.title ?? t("chat.new", locale)}
             </h2>
             <p className="text-xs text-muted-foreground leading-tight">
-              MiMo AI Engineering Intelligence
+              {locale === "ar" ? "منصة MiMo للذكاء الهندسي" : "MiMo AI Engineering Intelligence"}
             </p>
           </div>
         </div>
@@ -240,18 +299,23 @@ export function ChatPanel() {
 
         {/* Streaming content */}
         {isStreaming && streamingContent && (
-          <div className="flex gap-3">
+          <div className="flex gap-3" dir={dir}>
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center flex-shrink-0">
               <Bot className="w-3.5 h-3.5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-xs font-semibold text-violet-400 mb-1">
-                {selectedAgentDef?.title ?? "Assistant"}
+                {selectedAgentDef?.title ?? t("chat.assistant", locale)}
               </div>
-              <div className="prose prose-sm dark:prose-invert max-w-none break-words whitespace-pre-wrap text-sm leading-relaxed">
-                {streamingContent}
-                <span className="inline-block w-1.5 h-4 bg-violet-500 ml-0.5 animate-pulse" />
-              </div>
+              <Markdown
+                content={streamingContent}
+                className="text-sm leading-relaxed"
+              />
+              <span className="inline-block w-1.5 h-4 bg-violet-500 ml-0.5 animate-pulse align-middle" />
+              {/* Inline preview during streaming */}
+              {pendingPreview && (
+                <InlinePreview url={pendingPreview.url} name={pendingPreview.name} />
+              )}
             </div>
           </div>
         )}
@@ -301,25 +365,34 @@ export function ChatPanel() {
             onKeyDown={handleKeyDown}
             placeholder={
               autonomousMode
-                ? "Describe a goal — MiMo will plan & execute autonomously..."
-                : "Ask MiMo anything — code, research, planning, debugging..."
+                ? t("chat.autonomous.placeholder", locale)
+                : t("chat.placeholder", locale)
             }
             disabled={isStreaming}
             className="min-h-[60px] max-h-[200px] resize-none bg-background"
             rows={2}
+            dir={dir}
           />
-          <Button
-            onClick={send}
-            disabled={!input.trim() || isStreaming}
-            size="icon"
-            className="h-[60px] w-12 bg-gradient-to-br from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600"
-          >
-            {isStreaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
+          {isStreaming ? (
+            <Button
+              onClick={stop}
+              variant="destructive"
+              size="icon"
+              className="h-[60px] w-12"
+              title={t("chat.stop", locale)}
+            >
+              <Square className="w-4 h-4" />
+            </Button>
+          ) : (
+            <Button
+              onClick={send}
+              disabled={!input.trim()}
+              size="icon"
+              className="h-[60px] w-12 bg-gradient-to-br from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600"
+            >
               <Send className="w-4 h-4" />
-            )}
-          </Button>
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -334,7 +407,7 @@ function EmptyState() {
       </div>
       <h3 className="text-lg font-semibold mb-1">MiMo AI Engineering Platform</h3>
       <p className="text-sm text-muted-foreground max-w-md mb-6">
-        An autonomous AI engineering system with 10 specialized agents, 6 tools, and 69 skills.
+        An autonomous AI engineering system with 12 specialized agents, 15 tools, and 69 skills.
         Describe a goal — MiMo will research, plan, build, test, and deliver.
       </p>
 
@@ -372,15 +445,23 @@ function ExampleCard({ title, text }: { title: string; text: string }) {
 function MessageBubble({ message }: { message: import("@/lib/ai-client").Message }) {
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
-  const { agents } = useMimo();
+  const { agents, locale } = useMimo();
   const agent = message.agentName ? agents.find((a) => a.name === message.agentName) : null;
+  const [copied, setCopied] = useState(false);
 
   if (isTool) {
-    return null; // tool messages are shown in the active tools panel
+    return null;
   }
 
+  const copy = () => {
+    navigator.clipboard.writeText(message.content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-3 group" dir={getDirection(locale)}>
       <div
         className={cn(
           "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
@@ -400,17 +481,39 @@ function MessageBubble({ message }: { message: import("@/lib/ai-client").Message
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-xs font-semibold">
-            {isUser ? "You" : agent?.title ?? "Assistant"}
+            {isUser ? t("chat.you", locale) : agent?.title ?? t("chat.assistant", locale)}
           </span>
           {!isUser && message.durationMs > 0 && (
             <span className="text-[10px] text-muted-foreground">
               {(message.durationMs / 1000).toFixed(1)}s · {message.tokenOutput} tok
             </span>
           )}
+          {!isUser && (
+            <button
+              onClick={copy}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5"
+            >
+              {copied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+              {copied ? "copied" : "copy"}
+            </button>
+          )}
         </div>
-        <div className="prose prose-sm dark:prose-invert max-w-none break-words whitespace-pre-wrap text-sm leading-relaxed">
-          {message.content}
-        </div>
+        {isUser ? (
+          <div className="prose prose-sm dark:prose-invert max-w-none break-words whitespace-pre-wrap text-sm leading-relaxed">
+            {message.content}
+          </div>
+        ) : (
+          <>
+            <Markdown
+              content={message.content}
+              className="text-sm leading-relaxed"
+            />
+            {/* Inline preview for saved messages */}
+            {message.previewUrl && (
+              <InlinePreview url={message.previewUrl} name={message.previewName ?? "Preview"} />
+            )}
+          </>
+        )}
       </div>
     </div>
   );

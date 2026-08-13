@@ -2,6 +2,8 @@
 // MiMo AI — Model Gateway (z-ai-web-dev-sdk wrapper)
 // ===================================================================
 // ADR-001: All AI calls go through this gateway. Single source of truth.
+// NOTE: ZAI SDK streaming returns empty chunks — we use non-streaming
+// and simulate streaming by chunking the full response into word bursts.
 // ===================================================================
 
 import ZAI, { ChatMessage as ZaiChatMessage } from "z-ai-web-dev-sdk";
@@ -25,6 +27,15 @@ export interface ChatOptions {
   temperature?: number;
   thinking?: boolean;
   maxTokens?: number;
+  maxRetries?: number;
+  tools?: Array<{
+    type: "function";
+    function: {
+      name: string;
+      description: string;
+      parameters: Record<string, unknown>;
+    };
+  }>;
 }
 
 export interface ChatResult {
@@ -36,10 +47,35 @@ export interface ChatResult {
   };
   durationMs: number;
   finishReason?: string;
+  toolCalls?: unknown;
+  raw?: unknown;
+}
+
+const RATE_LIMIT_DELAY_MS = 2000;
+const MAX_RETRIES = 3;
+
+async function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isRetryableError(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    return (
+      msg.includes("429") ||
+      msg.includes("rate limit") ||
+      msg.includes("too many requests") ||
+      msg.includes("timeout") ||
+      msg.includes("network") ||
+      msg.includes("econnreset") ||
+      msg.includes("socket hang up")
+    );
+  }
+  return false;
 }
 
 /**
- * Non-streaming chat completion.
+ * Non-streaming chat completion with retry + rate-limit handling.
  */
 export async function chat(
   messages: ZaiChatMessage[],
@@ -47,6 +83,7 @@ export async function chat(
 ): Promise<ChatResult> {
   const start = Date.now();
   const zai = await getModel();
+  const maxRetries = options.maxRetries ?? MAX_RETRIES;
 
   const finalMessages: ZaiChatMessage[] = [];
   if (options.system) {
@@ -54,87 +91,101 @@ export async function chat(
   }
   finalMessages.push(...messages);
 
-  try {
-    const response = await zai.chat.completions.create({
-      messages: finalMessages,
-      stream: false,
-      thinking: { type: options.thinking ? "enabled" : "disabled" },
-    });
+  let lastErr: Error | null = null;
 
-    const content = response.choices?.[0]?.message?.content ?? "";
-    const finishReason = response.choices?.[0]?.finish_reason;
-    const usage = response.usage ?? {};
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const requestBody: Record<string, unknown> = {
+        messages: finalMessages,
+        stream: false,
+        thinking: { type: options.thinking ? "enabled" : "disabled" },
+      };
 
-    return {
-      content,
-      usage: {
-        promptTokens: usage.prompt_tokens ?? undefined,
-        completionTokens: usage.completion_tokens ?? undefined,
-        totalTokens: usage.total_tokens ?? undefined,
-      },
-      durationMs: Date.now() - start,
-      finishReason: finishReason ?? undefined,
-    };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Chat failed: ${msg}`);
+      // Add tools if provided (native function calling)
+      if (options.tools && options.tools.length > 0) {
+        requestBody.tools = options.tools;
+      }
+
+      const response = await zai.chat.completions.create(requestBody as Parameters<typeof zai.chat.completions.create>[0]);
+
+      const choice = response.choices?.[0];
+      const content = choice?.message?.content ?? "";
+      const finishReason = choice?.finish_reason;
+      const usage = response.usage ?? {};
+      const toolCalls = (choice as { message?: { tool_calls?: unknown } })?.message?.tool_calls;
+
+      return {
+        content,
+        usage: {
+          promptTokens: usage.prompt_tokens ?? undefined,
+          completionTokens: usage.completion_tokens ?? undefined,
+          totalTokens: usage.total_tokens ?? undefined,
+        },
+        durationMs: Date.now() - start,
+        finishReason: finishReason ?? undefined,
+        toolCalls: toolCalls ?? undefined,
+        raw: response,
+      };
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      if (isRetryableError(err) && attempt < maxRetries) {
+        const delay = RATE_LIMIT_DELAY_MS * Math.pow(2, attempt);
+        await sleep(delay);
+        continue;
+      }
+      throw lastErr;
+    }
   }
+
+  throw lastErr ?? new Error("Chat failed after retries");
 }
 
 /**
- * Streaming chat completion — async generator yielding string deltas.
+ * Simulated streaming — calls non-streaming chat (since ZAI SDK streaming
+ * is broken), then yields the response in word bursts for UX.
  */
 export async function* chatStream(
   messages: ZaiChatMessage[],
   options: ChatOptions = {}
 ): AsyncGenerator<string, ChatResult, unknown> {
   const start = Date.now();
-  const zai = await getModel();
 
-  const finalMessages: ZaiChatMessage[] = [];
-  if (options.system) {
-    finalMessages.push({ role: "system", content: options.system });
+  // First: emit a "thinking" indicator immediately so user sees activity
+  yield "";
+
+  // Call non-streaming chat
+  const result = await chat(messages, options);
+
+  // If empty content, yield nothing more
+  if (!result.content) {
+    return {
+      content: "",
+      usage: result.usage,
+      durationMs: Date.now() - start,
+      finishReason: result.finishReason,
+    };
   }
-  finalMessages.push(...messages);
 
-  let fullContent = "";
-  let finishReason: string | undefined;
-  let usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } = {};
+  // Chunk the response into word bursts for streaming UX
+  const words = result.content.split(/(\s+)/); // keep whitespace
+  const BURST_SIZE = 3; // words per burst
+  const BURST_DELAY_MS = 20; // delay between bursts
 
-  try {
-    const stream = await zai.chat.completions.create({
-      messages: finalMessages,
-      stream: true,
-      thinking: { type: options.thinking ? "enabled" : "disabled" },
-    });
-
-    for await (const chunk of stream) {
-      const delta = chunk.choices?.[0]?.delta?.content;
-      if (delta) {
-        fullContent += delta;
-        yield delta;
-      }
-      if (chunk.choices?.[0]?.finish_reason) {
-        finishReason = chunk.choices[0].finish_reason;
-      }
-      if (chunk.usage) {
-        usage = chunk.usage;
-      }
+  let yielded = "";
+  for (let i = 0; i < words.length; i += BURST_SIZE) {
+    const burst = words.slice(i, i + BURST_SIZE).join("");
+    yielded += burst;
+    yield burst;
+    if (BURST_DELAY_MS > 0 && i + BURST_SIZE < words.length) {
+      await sleep(BURST_DELAY_MS);
     }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Chat stream failed: ${msg}`);
   }
 
   return {
-    content: fullContent,
-    usage: {
-      promptTokens: usage.prompt_tokens ?? undefined,
-      completionTokens: usage.completion_tokens ?? undefined,
-      totalTokens: usage.total_tokens ?? undefined,
-    },
+    content: yielded,
+    usage: result.usage,
     durationMs: Date.now() - start,
-    finishReason,
+    finishReason: result.finishReason,
   };
 }
 
@@ -153,7 +204,6 @@ export async function generateStructured<T = unknown>(
   const result = await chat(messages, { ...options, system: sys });
 
   try {
-    // Try direct parse
     return JSON.parse(result.content) as T;
   } catch {
     // Try extracting JSON from markdown fences
@@ -175,6 +225,16 @@ export async function generateStructured<T = unknown>(
         // fall through
       }
     }
+    // Try array
+    const firstArr = result.content.indexOf("[");
+    const lastArr = result.content.lastIndexOf("]");
+    if (firstArr !== -1 && lastArr !== -1 && lastArr > firstArr) {
+      try {
+        return JSON.parse(result.content.slice(firstArr, lastArr + 1)) as T;
+      } catch {
+        // fall through
+      }
+    }
     throw new Error(
       `Failed to parse structured output. Raw: ${result.content.slice(0, 500)}`
     );
@@ -189,11 +249,24 @@ export async function invokeFunction<T = unknown>(
   args: Record<string, unknown>
 ): Promise<T> {
   const zai = await getModel();
-  try {
-    const result = await zai.functions.invoke(name, args);
-    return result as T;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    throw new Error(`Function ${name} failed: ${msg}`);
+  let lastErr: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const functions = zai.functions as unknown as {
+        invoke: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+      };
+      const result = await functions.invoke(name, args);
+      return result as T;
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      if (isRetryableError(err) && attempt < MAX_RETRIES) {
+        await sleep(RATE_LIMIT_DELAY_MS * Math.pow(2, attempt));
+        continue;
+      }
+      throw lastErr;
+    }
   }
+
+  throw lastErr ?? new Error(`Function ${name} failed`);
 }

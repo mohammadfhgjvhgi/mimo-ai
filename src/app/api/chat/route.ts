@@ -11,11 +11,46 @@ import type { AgentRole, StreamEvent } from "@/lib/ai/types";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// P6-5: Rate limiting — max 10 requests per minute per IP
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 10;
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, remaining: RATE_LIMIT_MAX - 1 };
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, remaining: 0 };
+  }
+
+  entry.count++;
+  return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count };
+}
+
 function sseEncode(event: StreamEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
 }
 
 export async function POST(req: NextRequest) {
+  // P6-5: Rate limiting
+  const ip = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "unknown";
+  const rateCheck = checkRateLimit(ip);
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded. Maximum 10 requests per minute." },
+      {
+        status: 429,
+        headers: { "Retry-After": "60" },
+      }
+    );
+  }
+
   let body: {
     conversationId?: string;
     message: string;
@@ -31,8 +66,15 @@ export async function POST(req: NextRequest) {
   }
 
   const { message, autonomous, projectType } = body;
+  // P6-5: Input validation
   if (!message || typeof message !== "string") {
     return NextResponse.json({ error: "message is required" }, { status: 400 });
+  }
+  if (message.length > 10_000) {
+    return NextResponse.json({ error: "message too long (max 10000 characters)" }, { status: 400 });
+  }
+  if (body.conversationId && typeof body.conversationId !== "string") {
+    return NextResponse.json({ error: "conversationId must be a string" }, { status: 400 });
   }
 
   // Get or create conversation
@@ -82,16 +124,9 @@ export async function POST(req: NextRequest) {
         send({ type: "start", conversationId, agent: agentName, isNewConversation });
 
         if (autonomous) {
-          // Run autonomous loop in background — stream events as they come
-          // But don't await the full thing (could take minutes)
-          // We'll await it but stream events
-          const result = await runAutonomousLoop({ conversationId, goal: message }, send);
-          send({
-            type: "end",
-            summary: result.summary,
-            success: result.success,
-            tasksCompleted: result.taskResults.length,
-          });
+          // Run autonomous loop — runAutonomousLoop already sends "end" event
+          // Don't send a second "end" event here (causes duplicate key error)
+          await runAutonomousLoop({ conversationId, goal: message }, send);
         } else {
           // Single task execution with streaming
           const result = await executeTask(

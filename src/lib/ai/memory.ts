@@ -45,18 +45,26 @@ export async function writeMemory(input: WriteMemoryInput) {
 export async function retrieveMemories(input: RetrieveMemoryInput) {
   const { query, limit = 5, types, scope, conversationId } = input;
 
-  // Build where clause
-  const where: Record<string, unknown> = {};
+  // Build where clause using AND + OR combination
+  // FIX: Previous code overwrote where.OR for conversationId with keyword OR,
+  // causing memories from other conversations to leak in.
+  // Now: AND[conversationScope, keywordMatch] — both must be true.
+  const andConditions: Record<string, unknown>[] = [];
+
   if (types && types.length > 0) {
-    where.type = { in: types };
+    andConditions.push({ type: { in: types } });
   }
   if (scope) {
-    where.scope = scope;
+    andConditions.push({ scope });
   }
+
+  // Conversation scoping: global memories OR this conversation's memories
   if (conversationId) {
-    where.OR = [{ conversationId: null }, { conversationId }];
+    andConditions.push({
+      OR: [{ conversationId: null }, { conversationId }],
+    });
   } else {
-    where.conversationId = null;
+    andConditions.push({ conversationId: null });
   }
 
   // Keyword search (case-insensitive LIKE on content + summary)
@@ -67,14 +75,15 @@ export async function retrieveMemories(input: RetrieveMemoryInput) {
     .slice(0, 5);
 
   if (keywords.length > 0) {
-    where.OR = [
-      ...(where.OR as unknown[]),
-      ...keywords.flatMap((kw) => [
+    andConditions.push({
+      OR: keywords.flatMap((kw) => [
         { content: { contains: kw } },
         { summary: { contains: kw } },
       ]),
-    ];
+    });
   }
+
+  const where = andConditions.length > 0 ? { AND: andConditions } : {};
 
   const memories = await db.memory.findMany({
     where,
