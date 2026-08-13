@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useMimo } from "@/lib/mimo-store";
 import { safeFetch } from "@/lib/safe-fetch";
 import {
@@ -198,6 +198,11 @@ export function MentionPopover({
   onDetach: (path: string) => void;
   hasProject: boolean;
 }) {
+  const [mounted, setMounted] = useState(false);
+  // Standard React pattern for client-only rendering (avoids Radix ID hydration mismatch)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), []);
+
   const filteredFiles = files
     .filter((f) => f.type === "file")
     .filter((f) => (query ? f.path.toLowerCase().includes(query.toLowerCase()) : true))
@@ -207,26 +212,28 @@ export function MentionPopover({
 
   return (
     <>
-      <Popover open={open} onOpenChange={onOpenChange}>
-        <PopoverTrigger asChild>
-          <span className="sr-only" aria-hidden>
-            mention
-          </span>
-        </PopoverTrigger>
-        <PopoverContent
-          className="w-80 p-0"
-          align="start"
-          side="top"
-          sideOffset={8}
-          onOpenAutoFocus={(e) => e.preventDefault()}
-        >
-          <Command shouldFilter={false}>
-            <CommandInput
-              placeholder={loading ? "Loading files..." : "Search files..."}
-              value={query}
-              onValueChange={onQueryChange}
-            />
-            <CommandList className="max-h-60 scrollbar-thin">
+      {/* Only render Popover after mount to avoid Radix ID hydration mismatch */}
+      {mounted && (
+        <Popover open={open} onOpenChange={onOpenChange}>
+          <PopoverTrigger asChild>
+            <span className="sr-only" aria-hidden>
+              mention
+            </span>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-80 p-0"
+            align="start"
+            side="top"
+            sideOffset={8}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            <Command shouldFilter={false}>
+              <CommandInput
+                placeholder={loading ? "Loading files..." : "Search files..."}
+                value={query}
+                onValueChange={onQueryChange}
+              />
+              <CommandList className="max-h-60 scrollbar-thin">
               <CommandEmpty>
                 {loading
                   ? "Loading..."
@@ -262,6 +269,7 @@ export function MentionPopover({
           </Command>
         </PopoverContent>
       </Popover>
+      )}
 
       {/* Attached files chips */}
       {attachedFiles.length > 0 && (
