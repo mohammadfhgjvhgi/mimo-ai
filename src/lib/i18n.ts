@@ -208,6 +208,36 @@ const translations: TranslationDict = {
   "settings.research": { ar: "البحث", en: "Research" },
   "settings.developer": { ar: "المطور", en: "Developer" },
   "settings.interface": { ar: "الواجهة", en: "Interface" },
+
+  // ─── Settings tabs (UIUX-P1-5) ───
+  "settings.tab.appearance": { ar: "المظهر", en: "Appearance" },
+  "settings.tab.models": { ar: "النماذج", en: "Models" },
+  "settings.tab.agents": { ar: "الوكلاء", en: "Agents" },
+  "settings.tab.tools": { ar: "الأدوات", en: "Tools" },
+  "settings.tab.skills": { ar: "المهارات", en: "Skills" },
+  "settings.tab.about": { ar: "حول", en: "About" },
+
+  // ─── Settings > Models ───
+  "settings.models.currentModel": { ar: "النموذج الحالي", en: "Current Model" },
+  "settings.models.provider": { ar: "المزوّد", en: "Provider" },
+  "settings.models.temperature": { ar: "درجة الحرارة", en: "Temperature" },
+  "settings.models.maxTokens": { ar: "الحد الأقصى للرموز", en: "Max Tokens" },
+  "settings.models.note": {
+    ar: "يتم إدارة تكوين النموذج من جانب الخادم",
+    en: "Model configuration is managed server-side",
+  },
+
+  // ─── Settings > About ───
+  "settings.about.systemInfo": { ar: "معلومات النظام", en: "System Information" },
+  "settings.about.platform": { ar: "المنصة", en: "Platform" },
+  "settings.about.stack": { ar: "التقنيات", en: "Tech Stack" },
+  "settings.about.resources": { ar: "موارد", en: "Resources" },
+  "settings.about.license": { ar: "الترخيص", en: "License" },
+  "settings.about.docs": { ar: "الوثائق", en: "Documentation" },
+
+  // ─── Settings > lists ───
+  "settings.skills.showing": { ar: "عرض", en: "Showing" },
+  "settings.skills.of": { ar: "من", en: "of" },
 };
 
 export function getDirection(locale: Locale): Direction {

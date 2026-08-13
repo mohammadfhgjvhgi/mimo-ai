@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* highlight.js — GitHub Dark theme for syntax highlighting in markdown */
+@import "highlight.js/styles/github-dark.css";
+
+/* Tailwind Typography plugin for prose classes (markdown rendering) */
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 /* Explicitly limit content scanning to src/ only — prevents Tailwind from
@@ -133,4 +139,49 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ─── Markdown code block refinements ────────────────────────── */
+/* Ensure highlight.js tokens render correctly inside our dark code blocks */
+.hljs-container pre code.hljs {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+/* Scrollbar styling for long code blocks & lists */
+.hljs-container pre {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.4 0 0) transparent;
+}
+.hljs-container pre::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.hljs-container pre::-webkit-scrollbar-thumb {
+  background-color: oklch(0.4 0 0);
+  border-radius: 3px;
+}
+.hljs-container pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Custom scrollbar for scrollable panels (max-h-96 etc.) */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.5 0 0 / 0.3) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: oklch(0.5 0 0 / 0.3);
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.5 0 0 / 0.5);
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
 }

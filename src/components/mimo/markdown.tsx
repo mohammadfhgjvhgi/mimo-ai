@@ -1,6 +1,9 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useEffect, isValidElement } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -9,114 +12,150 @@ interface MarkdownProps {
   className?: string;
 }
 
-interface CodeBlock {
-  lang: string;
-  code: string;
-}
-
-function parseContent(content: string): Array<{ type: "text" | "code"; content: string; lang?: string }> {
-  const parts: Array<{ type: "text" | "code"; content: string; lang?: string }> = [];
-  const codeBlockRegex = /```(\w+)?\s*\n([\s\S]*?)\n```/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = codeBlockRegex.exec(content)) !== null) {
-    // Text before code block
-    if (match.index > lastIndex) {
-      const text = content.slice(lastIndex, match.index);
-      if (text.trim()) {
-        parts.push({ type: "text", content: text });
-      }
-    }
-    // Code block
-    parts.push({
-      type: "code",
-      content: match[2],
-      lang: match[1] || "text",
+/**
+ * Production-grade markdown renderer.
+ * - GitHub Flavored Markdown (tables, strikethrough, task lists, autolinks)
+ * - Syntax highlighting via highlight.js (rehype-highlight)
+ * - Copy button overlay on code blocks
+ * - Language badge on code blocks
+ * - Streaming-safe (renders partial markdown gracefully)
+ *
+ * Replaces the previous hand-rolled regex parser which dropped tables,
+ * nested lists, blockquotes, headings, and syntax highlighting.
+ */
+function MarkdownImpl({ content, className }: MarkdownProps) {
+  // Force re-render on theme change by tracking document class
+  const [isDark, setIsDark] = useState(true);
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains("dark"));
     });
-    lastIndex = match.index + match[0].length;
-  }
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
 
-  // Remaining text
-  if (lastIndex < content.length) {
-    const text = content.slice(lastIndex);
-    if (text.trim()) {
-      parts.push({ type: "text", content: text });
-    }
-  }
+  return (
+    <div
+      className={cn(
+        "prose prose-sm dark:prose-invert max-w-none break-words",
+        // Tighten spacing for chat context
+        "prose-p:my-1.5 prose-pre:my-2 prose-ul:my-1.5 prose-ol:my-1.5",
+        "prose-li:my-0 prose-headings:mb-1 prose-headings:mt-2",
+        "prose-code:before:content-none prose-code:after:content-none",
+        // Inline code styling
+        "prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:bg-muted prose-code:text-violet-500 dark:prose-code:text-violet-300",
+        "prose-code:font-mono prose-code:text-[0.85em]",
+        // Code block: override prose-pre to use our custom wrapper
+        "prose-pre:bg-transparent prose-pre:p-0 prose-pre:m-0",
+        // Links
+        "prose-a:text-violet-500 dark:prose-a:text-violet-300 prose-a:underline prose-a:underline-offset-2",
+        // Tables
+        "prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1",
+        "prose-th:bg-muted/50 prose-th:font-semibold",
+        // Blockquotes
+        "prose-blockquote:border-l-violet-400 prose-blockquote:not-italic prose-blockquote:text-muted-foreground",
+        className
+      )}
+    >
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
+        components={{
+          // Custom code block renderer with copy button + language badge
+          pre: ({ children }) => {
+            // Extract text + language from the child <code> element
+            let codeText = "";
+            let language = "text";
 
-  return parts.length === 0 ? [{ type: "text", content }] : parts;
+            if (isValidElement(children)) {
+              const childProps = children.props as {
+                className?: string;
+                children?: React.ReactNode;
+              };
+              if (childProps.className) {
+                const match = /language-(\w+)/.exec(childProps.className);
+                if (match) language = match[1];
+              }
+              if (childProps.children) {
+                codeText = extractText(childProps.children);
+              }
+            }
+
+            return (
+              <CodeBlockView code={codeText} lang={language} isDark={isDark}>
+                {children}
+              </CodeBlockView>
+            );
+          },
+          // Inline code: keep default prose styling (already styled via className above)
+          code: ({ className: codeClassName, children, ...props }) => {
+            // Block code is handled by pre renderer above
+            const isInline = !codeClassName?.includes("language-");
+            if (!isInline) {
+              return (
+                <code className={codeClassName} {...props}>
+                  {children}
+                </code>
+              );
+            }
+            return <code className={codeClassName} {...props}>{children}</code>;
+          },
+          // Links: open in new tab safely
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {children}
+            </a>
+          ),
+          // Tables: wrap in overflow-x-auto for mobile
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-2">
+              <table>{children}</table>
+            </div>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
-function renderText(text: string): React.ReactNode {
-  // Split by lines and render with line breaks
-  const lines = text.split("\n");
-  return lines.map((line, i) => {
-    // Inline code
-    const inlineCodeRegex = /`([^`]+)`/g;
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-    let key = 0;
-
-    while ((match = inlineCodeRegex.exec(line)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(line.slice(lastIndex, match.index));
-      }
-      parts.push(
-        <code
-          key={`ic-${i}-${key++}`}
-          className="px-1 py-0.5 rounded bg-muted text-violet-500 text-[0.85em] font-mono"
-        >
-          {match[1]}
-        </code>
-      );
-      lastIndex = match.index + match[0].length;
-    }
-    if (lastIndex < line.length) {
-      parts.push(line.slice(lastIndex));
-    }
-
-    // Bold
-    const boldRegex = /\*\*([^*]+)\*\*/g;
-    const processedParts: React.ReactNode[] = [];
-    let boldLastIndex = 0;
-    let boldMatch: RegExpExecArray | null;
-    let boldKey = 0;
-    const lineContent = parts.length === 0 ? line : parts;
-
-    if (typeof lineContent === "string") {
-      while ((boldMatch = boldRegex.exec(lineContent)) !== null) {
-        if (boldMatch.index > boldLastIndex) {
-          processedParts.push(lineContent.slice(boldLastIndex, boldMatch.index));
-        }
-        processedParts.push(
-          <strong key={`b-${i}-${boldKey++}`} className="font-semibold">
-            {boldMatch[1]}
-          </strong>
-        );
-        boldLastIndex = boldMatch.index + boldMatch[0].length;
-      }
-      if (boldLastIndex < lineContent.length) {
-        processedParts.push(lineContent.slice(boldLastIndex));
-      }
-    } else {
-      processedParts.push(lineContent);
-    }
-
-    return (
-      <span key={`l-${i}`}>
-        {processedParts.length === 0 ? line : processedParts}
-        {i < lines.length - 1 && <br />}
-      </span>
-    );
-  });
+/** Recursively extract text content from React children (for copy button). */
+function extractText(node: React.ReactNode): string {
+  if (node == null || node === false) return "";
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (isValidElement(node)) {
+    const props = node.props as { children?: React.ReactNode };
+    return extractText(props.children);
+  }
+  return "";
 }
 
-function CodeBlockView({ code, lang }: { code: string; lang: string }) {
+function CodeBlockView({
+  code,
+  lang,
+  isDark,
+  children,
+}: {
+  code: string;
+  lang: string;
+  isDark: boolean;
+  children: React.ReactNode;
+}) {
   const [copied, setCopied] = useState(false);
 
-  const copy = () => {
+  const copy = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     navigator.clipboard.writeText(code).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -146,28 +185,13 @@ function CodeBlockView({ code, lang }: { code: string; lang: string }) {
           )}
         </button>
       </div>
-      <pre className="p-3 overflow-x-auto text-xs leading-relaxed">
-        <code className="font-mono text-zinc-100">{code}</code>
-      </pre>
+      {/* highlight.js themed pre — rehype-highlight adds <code class="hljs language-x"> */}
+      <div className="hljs-container overflow-x-auto text-xs leading-relaxed">
+        {/* Render the highlighted children from rehype-highlight */}
+        <pre className="p-3 m-0 bg-zinc-950!">{children}</pre>
+      </div>
     </div>
   );
 }
 
-export const Markdown = memo(function Markdown({ content, className }: MarkdownProps) {
-  const parts = parseContent(content);
-
-  return (
-    <div className={cn("break-words", className)}>
-      {parts.map((part, i) => {
-        if (part.type === "code") {
-          return <CodeBlockView key={i} code={part.content} lang={part.lang || "text"} />;
-        }
-        return (
-          <div key={i} className="text-sm leading-relaxed">
-            {renderText(part.content)}
-          </div>
-        );
-      })}
-    </div>
-  );
-});
+export const Markdown = memo(MarkdownImpl);

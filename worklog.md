@@ -623,3 +623,130 @@ Verification:
 - bun run lint: 0 errors, 0 warnings
 - bunx tsc --noEmit: 0 errors
 - Dev server: HTTP 200
+
+---
+Task ID: UIUX-Research-1
+Agent: UI/UX Research Agent
+Task: Research GitHub AI agent UI/UX patterns
+
+Work Log:
+- Read worklog.md and existing MiMo source (workspace.tsx, chat-panel.tsx, command-palette.tsx, settings-dialog.tsx, sidebar.tsx, markdown.tsx) to establish current-state baseline (12 panels, custom regex markdown renderer, sidebar + top-bar + 2-col resizable, violet accent, AR/EN i18n, dark/light/system theme, sonner toasts, Cmd+K command palette).
+- Used z-ai web_search skill to find primary sources for 14 target projects (OpenHands, SWE-agent, bolt.diy, bolt.new, vercel/ai-chatbot, gpt-engineer, aider, continue.dev, Cline/Roo Code, LobeChat, AnythingLLM, Dify, Flowise, bolt.new clones).
+- Used z-ai page_reader skill to extract README / docs content for 13 repos + 3 supplementary docs (SWE-agent web_ui page, Continue install docs, OpenHands Agent Canvas overview, Bolt Code View docs, Bolt Chat Tools docs).
+- Parsed HTML (stripped scripts/styles/feature-flag JSON, isolated <article> content) for clean text extraction.
+- Cross-referenced findings against MiMo's current implementation to identify gaps and concrete improvements.
+
+Stage Summary:
+- 14 projects benchmarked; clear taxonomy of 4 UI archetypes: (a) ChatGPT-style chat (vercel/ai-chatbot, LobeChat, AnythingLLM), (b) IDE/workspace split (bolt.diy, OpenHands Agent Canvas, Cline), (c) Visual node editor (Dify, Flowise), (d) Terminal-native (aider, SWE-agent, gpt-engineer CLI, continue CLI).
+- Top gaps in MiMo vs peers: (1) lightweight markdown renderer (no GFM tables/lists/strikethrough, no syntax-highlight), (2) no live inline diff viewer in chat, (3) no file-tree-mention @-autocomplete in chat input, (4) no plan-mode toggle, (5) no token-usage / cost HUD, (6) no multi-tab panel stacking (single side panel only), (7) no diff-based approval flow (Cline-style), (8) no onboarding empty-state with example prompts/templates, (9) no mobile-responsive sheet drawer (sidebar is fixed), (10) no agent-activity ring / live per-agent indicator in chat, (11) settings dialog only 3 sections vs peers' 8+ tabbed settings, (12) no export-to-ZIP / deploy-to-Netlify, (13) no Share / public-link for chats, (14) no keyboard-cheatsheet overlay, (15) no Mermaid / diagram rendering.
+- Delivered full comparison report (Executive Summary + 10 sections + reference link list) with prioritized P0/P1/P2 recommendations, technical approach (component, library, file location) for each.
+- Output: full report returned in chat for direct use; this worklog entry for traceability.
+
+---
+Task ID: UIUX-P1-5
+Agent: Frontend Developer (Settings Tabs)
+Task: Rebuild settings dialog as 6-tab interface
+
+Work Log:
+- Read project context (worklog, current settings-dialog, mimo-store, i18n, tabs component, agents/skills/tools panels, agent-icons, slider, badge, separator, scroll-area, card, dialog)
+- Added 11 new i18n keys to src/lib/i18n.ts:
+  - settings.tab.{appearance,models,agents,tools,skills,about} (bilingual ar/en)
+  - settings.models.{currentModel,provider,temperature,maxTokens,note}
+  - settings.about.{systemInfo,platform,stack,resources,license,docs}
+  - settings.skills.{showing,of}
+- Rewrote src/components/mimo/settings-dialog.tsx:
+  - Dialog widened from max-w-md to max-w-3xl, content area max-h-[70vh]
+  - Used shadcn Tabs with vertical TabsList (w-44, flex-col) on left + scrollable TabsContent on right
+  - Tab triggers: icon + label, stacked vertically, justify-start, h-auto
+  - Default active tab: "appearance"
+  - Selective Zustand subscriptions via useMimo((s) => ...) to minimize re-renders
+  - Tab 1 (Appearance): language selector + theme buttons + direction info (moved from old dialog)
+  - Tab 2 (Models): read-only GLM-4-plus + z-ai-web-dev-sdk badges + Temperature slider (0-2, step 0.05) + Max Tokens slider (1024-32768, step 1024) + amber note box about server-side management
+  - Tab 3 (Agents): scrollable list (max-h-80, scrollbar-thin) with icon, title, role badge (mono), name (mono), description (line-clamp-2)
+  - Tab 4 (Tools): scrollable list with monospace name, risk-level badge (emerald/amber/rose), timeout badge, description
+  - Tab 5 (Skills): showing X of Y counter + scrollable list of first 50 skills + "+N more skills…" footer when truncated
+  - Tab 6 (About): system info box + resources links (docs + GitHub with external-link icons) + license info
+- Temperature & maxTokens state initialized lazily from localStorage (mimo.temperature / mimo.maxTokens) with safe defaults 0.7 / 8192
+- Slider change handlers persist to localStorage (try/catch for private mode)
+- Used existing shadcn/ui components only (Tabs, Slider, Badge, Button, Card, Separator, Dialog)
+- Lucide icons: Palette, Cpu, Users, Wrench, Sparkles, Info
+- RTL/LTR support via getDirection(locale) and dir={dir} on Dialog + Tabs
+- Bilingual labels throughout via t() function
+- TypeScript strict: no `any` types, all types properly declared (TabKey, LucideIcon, etc.)
+- Resolved lint error: replaced useState+useEffect pattern with lazy useState initializer (avoids react-hooks/set-state-in-effect rule, no hydration mismatch since Dialog is closed during initial SSR)
+
+Stage Summary:
+- Settings dialog completely rebuilt: 1 section → 6 tabs with left-sided vertical navigation
+- All 4 verification checks pass: bunx tsc --noEmit (exit 0), bun run lint (exit 0), dev.log shows no errors
+- No new dependencies installed; no backend changes; no other components modified
+- File: src/components/mimo/settings-dialog.tsx (648 lines) + src/lib/i18n.ts (+30 lines)
+
+---
+Task ID: UIUX-Enhancement-Batch
+Agent: Z.ai Code (Principal Frontend Engineer)
+Task: بحث GitHub عن مشاريع AI agent مشابهة + تنفيذ تحسينات UI/UX بناءً على الفجوات المكتشفة
+
+Work Log:
+- أرسلت research agent للبحث عن 14 مشروع AI agent على GitHub (OpenHands, SWE-agent, bolt.diy, v0, Lovable, Aider, Continue, Cline, LobeChat, AnythingLLM, Dify, Flowise, gpt-engineer, Vercel AI Chatbot)
+- التقرير حدّد 25 ميزة مفقودة و 10 تحسينات ملموسة (P0/P1/P2)
+- P0-1: استبدلت markdown renderer اليدوي (regex) بـ react-markdown + remark-gfm + rehype-highlight
+  - Added: جداول GFM، strikethrough، task lists، headings، links، syntax highlighting (highlight.js github-dark theme)
+  - Added: copy button overlay على code blocks مع language badge
+  - Installed: remark-gfm, rehype-highlight, highlight.js, @tailwindcss/typography
+  - Added: custom scrollbar styling (.scrollbar-thin, .hljs-container pre)
+- P0-2: أعدت بناء EmptyState مع template gallery
+  - Created: src/lib/templates.ts (8 قوالب: Landing Page, Dashboard, REST API, Debug, Research, Plan, Refactor, Tests)
+  - 6 category filters (All/Build/Debug/Research/Plan/Refactor/Test)
+  - Capability badges (12 agents · 18 tools · 69 skills)
+  - Auto-send عند النقر على قالب (مع تفعيل autonomous للقوالب المناسبة)
+  - Keyboard hints (⌘K, Enter)
+- P0-3: بنيت ToolCallCard component لعرض tool calls كـ diff cards
+  - Created: src/components/mimo/tool-call-card.tsx
+  - Features: collapsible, diff view لـ file_write/patch/file_edit, syntax highlighting, +/- line counts, "View in Files" button
+  - Status indicators: running (amber), done (emerald), error (rose)
+  - Replaced: simple tool chips بـ rich diff cards
+- P1-4: أضفت TokenHud في chat header
+  - Shows: ↑ input tokens · ↓ output tokens · replies count
+  - Compact badge مع tooltips
+- P1-5: أعدت بناء Settings dialog كـ 6-tab interface (via subagent)
+  - Tabs: Appearance, Models, Agents, Tools, Skills, About
+  - Models tab: Temperature slider + Max Tokens slider (localStorage persisted)
+  - Agents/Tools/Skills tabs: scrollable lists مع badges
+  - Added: 11 i18n keys جديدة
+  - Dialog widened to max-w-3xl
+- P1-6: حدّثت MessageBubble مع agent avatars + reasoning collapsible
+  - Agent icon (via getAgentIcon) بدلاً من Bot icon افتراضي
+  - Agent system name badge (monospace)
+  - Reasoning collapsible لـ <think>...</think> tags
+  - Copy button يحفظ displayContent فقط (بدون reasoning)
+- P1-1: بنيت @-mention file autocomplete
+  - Created: src/components/mimo/mention-autocomplete.tsx (hook + presentational component)
+  - Detects @ في textarea → يفتح popover مع file list
+  - Fetches file tree من /api/workspace/tree
+  - Selecting file: inserts @path + fetches content + attaches as chip
+  - Attached files chips above textarea (removable)
+  - File contents prepended to message على send
+  - Graceful handling عند عدم وجود project
+
+Verification:
+- bunx tsc --noEmit: 0 errors ✅
+- bun run lint: 0 errors, 0 warnings ✅
+- Dev server: HTTP 200 ✅
+- Agent Browser verification:
+  - Empty State مع templates: ✅ (8 قوالب، 6 فلاتر، capability badges)
+  - Template auto-send: ✅ (إنشاء محادثة جديدة بالعنوان الصحيح)
+  - Settings dialog 6 tabs: ✅ (Appearance/Models/Agents/Tools/Skills/About)
+  - Models tab: ✅ (GLM-4-plus + Temperature/MaxTokens sliders)
+  - Agent avatars في chat: ✅ (Developer icon + name badge + 3.8s · 154 tok)
+  - Markdown rendering: ✅ (react-markdown + GFM + syntax highlight)
+  - @-mention popover: ✅ (يفتح عند كتابة @، يعرض "Select a project first" عند عدم وجود مشروع)
+  - No console errors, no page errors ✅
+
+Stage Summary:
+- 7 تحسينات UI/UX منفذة (3× P0 + 4× P1)
+- 3 ملفات جديدة: templates.ts, tool-call-card.tsx, mention-autocomplete.tsx
+- 4 ملفات محدّثة: markdown.tsx (rewrite), chat-panel.tsx (major), settings-dialog.tsx (rewrite via subagent), globals.css (typography + scrollbars)
+- 4 حزم مثبتة: remark-gfm, rehype-highlight, highlight.js, @tailwindcss/typography
+- البحث أكد أن MiMo يتفوق على الأقران في: multi-agent visualization (task graph + timeline + decisions + knowledge graph) — وهي ميزات لا يمتلكها معظم المنافسين
+- الفجوات الرئيسية التي سُدّت: markdown quality, onboarding, in-chat diff, token HUD, settings depth, agent attribution, file mentions
+- جميع التحسينات متوافقة مع RTL/LTR و Arabic/English
