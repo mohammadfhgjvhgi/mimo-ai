@@ -8,7 +8,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("q") ?? "";
     const category = searchParams.get("category");
-    const limit = Math.min(parseInt(searchParams.get("limit") ?? "20", 10), 100);
+    const takeRaw = parseInt(searchParams.get("limit") ?? searchParams.get("take") ?? "20", 10);
+    const take = Math.min(Math.max(takeRaw || 20, 1), 100);
+    const skip = parseInt(searchParams.get("skip") ?? "0", 10);
 
     // Build where clause
     const where: Record<string, unknown> = {};
@@ -28,32 +30,37 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const entries = await db.knowledgeEntry.findMany({
-      where,
-      orderBy: [{ accessCount: "desc" }, { createdAt: "desc" }],
-      take: limit,
-      select: {
-        id: true,
-        title: true,
-        summary: true,
-        category: true,
-        sourcePath: true,
-        tags: true,
-        accessCount: true,
-        createdAt: true,
-      },
-    });
-
-    // Get categories for faceting
-    const categories = await db.knowledgeEntry.groupBy({
-      by: ["category"],
-      _count: { category: true },
-      orderBy: { _count: { category: "desc" } },
-    });
+    const [entries, total, categories] = await Promise.all([
+      db.knowledgeEntry.findMany({
+        where,
+        orderBy: [{ accessCount: "desc" }, { createdAt: "desc" }],
+        take,
+        skip: Number.isFinite(skip) && skip > 0 ? skip : 0,
+        select: {
+          id: true,
+          title: true,
+          summary: true,
+          category: true,
+          sourcePath: true,
+          tags: true,
+          accessCount: true,
+          createdAt: true,
+        },
+      }),
+      db.knowledgeEntry.count({ where }),
+      db.knowledgeEntry.groupBy({
+        by: ["category"],
+        _count: { category: true },
+        orderBy: { _count: { category: "desc" } },
+      }),
+    ]);
 
     return NextResponse.json({
       results: entries,
       count: entries.length,
+      total,
+      take,
+      skip: Number.isFinite(skip) && skip > 0 ? skip : 0,
       categories: categories.map((c) => ({ name: c.category, count: c._count.category })),
     });
   } catch (err) {
