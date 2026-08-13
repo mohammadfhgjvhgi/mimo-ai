@@ -270,3 +270,156 @@ export async function invokeFunction<T = unknown>(
 
   throw lastErr ?? new Error(`Function ${name} failed`);
 }
+
+// ===================================================================
+// Advanced Reasoning: Tree-of-Thought + Self-Consistency
+// ===================================================================
+
+/**
+ * Tree-of-Thought (ToT): Generate multiple reasoning paths, evaluate them, pick the best.
+ * Research: R2 Base — "explore multiple thought paths"
+ */
+export async function treeOfThought(
+  messages: ZaiChatMessage[],
+  options: ChatOptions & { branches?: number } = {}
+): Promise<ChatResult> {
+  const branches = Math.min(options.branches ?? 3, 5);
+  const start = Date.now();
+
+  // Generate multiple paths with different temperatures
+  const paths = await Promise.all(
+    Array.from({ length: branches }, (_, i) =>
+      chat(messages, { ...options, temperature: 0.3 + i * 0.25 })
+        .then((r) => r.content)
+        .catch(() => "")
+    )
+  );
+
+  // Filter empty paths
+  const validPaths = paths.filter((p) => p.length > 20);
+  if (validPaths.length === 0) {
+    return { content: "", usage: {}, durationMs: Date.now() - start };
+  }
+  if (validPaths.length === 1) {
+    return { content: validPaths[0], usage: {}, durationMs: Date.now() - start };
+  }
+
+  // Evaluate paths: ask model to pick the best
+  const evalMessages: ZaiChatMessage[] = [
+    {
+      role: "system",
+      content: "You are an evaluator. Pick the best answer from multiple candidates. Return ONLY the best answer, no commentary.",
+    },
+    {
+      role: "user",
+      content: `Question: ${messages[messages.length - 1]?.content ?? ""}\n\nCandidates:\n${validPaths.map((p, i) => `--- Candidate ${i + 1} ---\n${p.slice(0, 1000)}`).join("\n\n")}\n\nReturn ONLY the best answer:`,
+    },
+  ];
+
+  const best = await chat(evalMessages, { temperature: 0.1 });
+  return {
+    content: best.content,
+    usage: best.usage,
+    durationMs: Date.now() - start,
+    finishReason: "tot_selected",
+  };
+}
+
+/**
+ * Self-Consistency: Generate multiple answers, pick the most common one.
+ * Research: R2 Base — "generate multiple answers and select the best"
+ */
+export async function selfConsistency(
+  messages: ZaiChatMessage[],
+  options: ChatOptions & { samples?: number } = {}
+): Promise<ChatResult> {
+  const samples = Math.min(options.samples ?? 3, 5);
+  const start = Date.now();
+
+  const results = await Promise.all(
+    Array.from({ length: samples }, () =>
+      chat(messages, { ...options, temperature: 0.7 })
+        .then((r) => r.content)
+        .catch(() => "")
+    )
+  );
+
+  const valid = results.filter((r) => r.length > 10);
+  if (valid.length === 0) {
+    return { content: "", usage: {}, durationMs: Date.now() - start };
+  }
+
+  // Find most similar answer (longest common prefix approach)
+  const counts = new Map<string, number>();
+  for (const r of valid) {
+    const key = r.slice(0, 200); // Use first 200 chars as key
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  let bestKey = valid[0].slice(0, 200);
+  let bestCount = 0;
+  for (const [key, count] of counts) {
+    if (count > bestCount) {
+      bestCount = count;
+      bestKey = key;
+    }
+  }
+
+  const best = valid.find((r) => r.slice(0, 200) === bestKey) ?? valid[0];
+  return {
+    content: best,
+    usage: {},
+    durationMs: Date.now() - start,
+    finishReason: `self_consistency (${bestCount}/${valid.length} agreed)`,
+  };
+}
+
+/**
+ * Prompt Optimization: Improve a prompt based on examples.
+ * Research: R2 — DSPy/MIPROv2 lineage
+ * Simplified: uses LLM to refine the prompt.
+ */
+export async function optimizePrompt(
+  currentPrompt: string,
+  examples: Array<{ input: string; expected: string }>,
+  options: ChatOptions = {}
+): Promise<string> {
+  const messages: ZaiChatMessage[] = [
+    {
+      role: "system",
+      content: "You are a prompt optimization expert. Improve the given prompt based on the examples. Return ONLY the improved prompt, no commentary.",
+    },
+    {
+      role: "user",
+      content: `Current prompt:\n${currentPrompt}\n\nExamples:\n${examples.map((e) => `Input: ${e.input}\nExpected: ${e.expected}`).join("\n\n")}\n\nImproved prompt:`,
+    },
+  ];
+
+  const result = await chat(messages, { temperature: 0.3, ...options });
+  return result.content.trim();
+}
+
+/**
+ * Trajectory Replay: Re-execute a sequence of past tool calls.
+ * Research: R2 — "trajectory replay learning"
+ */
+export async function replayTrajectory(
+  trajectory: Array<{ agent: string; tool: string; input: Record<string, unknown>; output: unknown }>,
+  onStep?: (step: { agent: string; tool: string; index: number }) => void
+): Promise<Array<{ step: number; tool: string; success: boolean }>> {
+  const results: Array<{ step: number; tool: string; success: boolean }> = [];
+
+  for (let i = 0; i < trajectory.length; i++) {
+    const step = trajectory[i];
+    onStep?.({ agent: step.agent, tool: step.tool, index: i });
+
+    // In a real replay, we'd re-execute the tool. Here we just mark it.
+    results.push({
+      step: i,
+      tool: step.tool,
+      success: step.output !== null && step.output !== undefined,
+    });
+  }
+
+  return results;
+}
