@@ -56,7 +56,7 @@ interface MimoStore {
   systemState: SystemState | null;
 
   // ─── UI state ───────────────────────────────────────
-  activePanel: "chat" | "tasks" | "agents" | "artifacts" | "memory" | "decisions" | "timeline" | "skills" | "tools" | "projects" | "files" | "terminal" | "preview";
+  activePanel: "chat" | "tasks" | "agents" | "artifacts" | "memory" | "decisions" | "timeline" | "skills" | "tools" | "projects" | "files" | "terminal" | "knowledge" | "preview";
   autonomousMode: boolean;
   selectedAgent: string | null;
   isStreaming: boolean;

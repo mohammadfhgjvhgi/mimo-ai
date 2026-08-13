@@ -15,6 +15,7 @@ import { ToolsPanel } from "./tools-panel";
 import { ProjectsPanel } from "./projects-panel";
 import { FilesPanel } from "./files-panel";
 import { TerminalPanel } from "./terminal-panel";
+import { KnowledgePanel } from "./knowledge-panel";
 import { PreviewPanel } from "./preview-panel";
 import { CommandPalette } from "./command-palette";
 import { SettingsDialog } from "./settings-dialog";
@@ -38,6 +39,7 @@ import {
   FolderKanban,
   FolderTree,
   TerminalSquare,
+  Database,
   Eye,
 } from "lucide-react";
 
@@ -49,6 +51,7 @@ const PANELS = [
   { id: "artifacts" as const, key: "panel.artifacts", icon: FileText },
   { id: "files" as const, key: "panel.files", icon: FolderTree },
   { id: "terminal" as const, key: "panel.terminal", icon: TerminalSquare },
+  { id: "knowledge" as const, key: "panel.knowledge", icon: Database },
   { id: "memory" as const, key: "panel.memory", icon: Brain },
   { id: "decisions" as const, key: "panel.decisions", icon: Gavel },
   { id: "timeline" as const, key: "panel.timeline", icon: Activity },
@@ -261,6 +264,7 @@ export function Workspace() {
                     {activePanel === "artifacts" && <ArtifactsPanel />}
                     {activePanel === "files" && <FilesPanel />}
                     {activePanel === "terminal" && <TerminalPanel />}
+                    {activePanel === "knowledge" && <KnowledgePanel />}
                     {activePanel === "memory" && <MemoryPanel />}
                     {activePanel === "decisions" && <DecisionsPanel />}
                     {activePanel === "timeline" && <TimelinePanel />}

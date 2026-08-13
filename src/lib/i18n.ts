@@ -164,6 +164,8 @@ const translations: TranslationDict = {
   "files.original": { ar: "الأصلي", en: "Original" },
   "files.modified": { ar: "المعدّل", en: "Modified" },
 
+  "panel.knowledge": { ar: "المعرفة", en: "Knowledge" },
+
   // ─── Terminal (P3-6) ───
   "panel.terminal": { ar: "الطرفية", en: "Terminal" },
   "terminal.empty": {
