@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://dify.ai/blog/dify-ai-workflow",
+    "name": "Introducing Dify Workflow",
+    "snippet": "Apr 8, 2024 — Dify's new Creator Center and Template Marketplace let creators publish workflow templates and users discover and one-click adopt them, with ... Read more",
+    "host_name": "dify.ai",
+    "rank": 0,
+    "date": "Apr 8, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.workflowbuilder.io/compare/dify",
+    "name": "Dify alternative: embeddable workflow editor with React SDK",
+    "snippet": "First, Workflow Builder is a React SDK that mounts the editor canvas inside your product ; Dify is a standalone platform with chat-widget and iframe embed. Read more",
+    "host_name": "www.workflowbuilder.io",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dify.ai",
+    "name": "Dify - The Platform for Production-Ready Agentic Workflows",
+    "snippet": "Dify is the platform for production-ready agentic workflows . Build agents, knowledge pipelines, models, and tools on one canvas, deployable on Cloud, ...",
+    "host_name": "dify.ai",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.reddit.com/r/PostAI/comments/1co1xbw/dify_ai_build_ai_apps_rag_workflows_with",
+    "name": "Dify AI: Build AI Apps & RAG Workflows with Drag-and-",
+    "snippet": "Dify AI : Build AI Apps & RAG Workflows with Drag-and-Drop UI through this NEW & OPENSOURCE Platform! The best AI for UI Design?",
+    "host_name": "www.reddit.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dylanhuang.com/blog/dify",
+    "name": "6 Things I Would Improve About Dify.AI - Dylan Huang",
+    "snippet": "Nov 11, 2024 — Screenshot of a workflow on our self-hosted Dify instance. Dify is one of the most capable, well-designed, and useful prompt engineering tools. ...",
+    "host_name": "dylanhuang.com",
+    "rank": 4,
+    "date": "Nov 11, 2024",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/langgenius/dify/discussions/22653",
+    "name": "changing UI of Defy · langgenius dify · Discussion #22653",
+    "snippet": "Aug 7, 2025 — To customize the Dify chat UI, you'll want to modify the React components in the frontend codebase , mainly under web/app/components/base/chat . ...",
+    "host_name": "github.com",
+    "rank": 5,
+    "date": "Aug 7, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://dify.ai/blog/dify-agent-node-introduction-when-workflows-learn-autonomous-reasoning",
+    "name": "Dify Agent Node Introduction – When Workflows Learn “",
+    "snippet": "Mar 12, 2025 — Dify's Agent Node acts like a brain within workflows, letting LLMs make decisions and handle tasks autonomously.",
+    "host_name": "dify.ai",
+    "rank": 6,
+    "date": "Mar 12, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.instagram.com/popular/dify-workflow-editor-screenshot",
+    "name": "Dify Workflow Editor Screenshot",
+    "snippet": "Mar 17, 2026 — Watch short videos about dify workflow editor screenshot from people around the world.",
+    "host_name": "www.instagram.com",
+    "rank": 7,
+    "date": "Mar 17, 2026",
+    "favicon": ""
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://github.com/lobehub/sd-webui-lobe-theme",
+    "name": "lobehub/sd-webui-lobe-theme: 🅰️",
+    "snippet": "Whether you want a stable deep blue, a lively peach pink, or a professional gray and white , users can find color options that match their style in LobeTheme.",
+    "host_name": "github.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://ui.lobehub.com",
+    "name": "LobeHub UI Kit - Lobe UI",
+    "snippet": "Customize colors, typography, breakpoints, and other design foundations through the theme system. Build interfaces that adapt consistently to light and dark ...",
+    "host_name": "ui.lobehub.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://lobehub.com/skills/erichowens-some_claude_skills-dark-mode-design-expert",
+    "name": "dark-mode-design-expert | Skills Mar",
+    "snippet": "Aug 2, 2026 — 1. Pure Black Background (#000000 ) · 2. Pure White Text (#FFFFFF) on Dark · 3. Same Colors for Both Themes · 4. Shadows in Dark Mode · 5. Inverted ... Read more",
+    "host_name": "lobehub.com",
+    "rank": 2,
+    "date": "Aug 2, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.figma.com/resource-library/color-combinations",
+    "name": "100 Color Combinations To Influence Your Next Design",
+    "snippet": "Pairing the right colors together creates harmony in UI designs. Learn 100 color combinations for your next project and how Figma can help.",
+    "host_name": "www.figma.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://deephaven.io/core/ui/0.30.0/docs/creating-layouts/size-and-theme",
+    "name": "Size and Theme",
+    "snippet": "The Default Dark and Default Light themes are provided, A color is specified with a name and an index number. For example, blue-100 or red-600 . In a dark  ...",
+    "host_name": "deephaven.io",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://lobehub.com/skills/btriapitsyn-openchamber-theme-system",
+    "name": "theme-system | Skills Marketplace",
+    "snippet": "Jul 27, 2026 — Use when creating or modifying UI components, styles, or visual elements in OpenChamber. All UI colors must use theme tokens — never hardcoded",
+    "host_name": "lobehub.com",
+    "rank": 5,
+    "date": "Jul 27, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://mui.com/material-ui/customization/palette",
+    "name": "Palette - Material UI",
+    "snippet": "The theme exposes the following default palette colors (accessible under theme .palette.* ):. primary - for primary interface elements. secondary - for secondary ... Read more",
+    "host_name": "mui.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://theme-ui.com/theming",
+    "name": "Colors",
+    "snippet": "Color modes. Multiple color modes, i.e. dark mode, can be handled with a nested modes object that matches the shape of the default colors . Read more",
+    "host_name": "theme-ui.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  }
+]

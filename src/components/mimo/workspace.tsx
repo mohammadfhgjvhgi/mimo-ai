@@ -138,25 +138,27 @@ export function Workspace() {
       <Sidebar />
 
       {/* Main area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 bg-background bg-mesh-dark">
         {/* Top bar */}
-        <header className="border-b px-4 py-2 flex items-center justify-between bg-card/30">
-          <div className="flex items-center gap-1 flex-wrap">
+        <header className="border-b border-border bg-card/50 backdrop-blur-xl px-3 py-1.5 flex items-center justify-between gap-2 sticky top-0 z-10">
+          <div className="flex items-center gap-0.5 overflow-x-auto scrollbar-thin flex-1">
             {PANELS.map((panel) => {
               const Icon = panel.icon;
+              const isActive = activePanel === panel.id;
               return (
                 <button
                   key={panel.id}
                   onClick={() => setActivePanel(panel.id)}
                   className={cn(
-                    "px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors",
-                    activePanel === panel.id
-                      ? "bg-violet-500 text-white"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                    "px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-smooth flex-shrink-0",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
                   )}
+                  title={t(panel.key, locale)}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{t(panel.key, locale)}</span>
+                  <span className="hidden lg:inline">{t(panel.key, locale)}</span>
                 </button>
               );
             })}

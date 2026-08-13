@@ -325,16 +325,16 @@ export function ChatPanel() {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="border-b px-4 py-3 flex items-center justify-between gap-3 bg-card/50 backdrop-blur">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+      <div className="border-b border-border px-4 py-2.5 flex items-center justify-between gap-3 bg-card/30 backdrop-blur-xl">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center glow-violet flex-shrink-0">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
-          <div>
-            <h2 className="text-sm font-semibold leading-tight">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold leading-tight truncate">
               {currentConversation?.title ?? t("chat.new", locale)}
             </h2>
-            <p className="text-xs text-muted-foreground leading-tight">
+            <p className="text-[11px] text-muted-foreground leading-tight truncate">
               {locale === "ar" ? "منصة MiMo للذكاء الهندسي" : "MiMo AI Engineering Intelligence"}
             </p>
           </div>
@@ -359,7 +359,7 @@ export function ChatPanel() {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-5 scrollbar-thin">
         {messages.length === 0 && !isStreaming && (
           <EmptyState
             locale={locale}
@@ -437,17 +437,17 @@ export function ChatPanel() {
       </div>
 
       {/* Composer */}
-      <div className="border-t bg-card/50 backdrop-blur p-3 space-y-2">
+      <div className="border-t border-border bg-card/30 backdrop-blur-xl px-4 py-3 space-y-2">
         {/* Agent selector */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] text-muted-foreground mr-1">Agent:</span>
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium mr-1">Agent</span>
           <button
             onClick={() => setSelectedAgent(null)}
             className={cn(
-              "text-[11px] px-2 py-0.5 rounded-md transition-colors",
+              "text-[11px] px-2 py-0.5 rounded-md transition-smooth font-medium",
               !selectedAgent
-                ? "bg-violet-500 text-white"
-                : "bg-muted text-muted-foreground hover:bg-muted/70"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
             auto
@@ -505,7 +505,7 @@ export function ChatPanel() {
                 : t("chat.placeholder", locale) + (mention.attachedFiles.length === 0 ? " · @ to mention files" : "")
             }
             disabled={isStreaming}
-            className="min-h-[60px] max-h-[200px] resize-none bg-background"
+            className="min-h-[56px] max-h-[200px] resize-none bg-muted/30 border border-border rounded-xl px-3 py-2.5 text-sm focus-visible:ring-1 focus-visible:ring-primary transition-smooth"
             rows={2}
             dir={dir}
           />
@@ -514,7 +514,7 @@ export function ChatPanel() {
               onClick={stop}
               variant="destructive"
               size="icon"
-              className="h-[60px] w-12"
+              className="h-[56px] w-12 rounded-xl"
               title={t("chat.stop", locale)}
             >
               <Square className="w-4 h-4" />
@@ -524,7 +524,7 @@ export function ChatPanel() {
               onClick={send}
               disabled={!input.trim()}
               size="icon"
-              className="h-[60px] w-12 bg-gradient-to-br from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600"
+              className="h-[56px] w-12 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 glow-violet disabled:glow-violet-0 transition-smooth"
             >
               <Send className="w-4 h-4" />
             </Button>
@@ -552,17 +552,20 @@ function EmptyState({
   const isAr = locale === "ar";
 
   return (
-    <div className="h-full flex flex-col items-center justify-start text-center py-8 px-4 overflow-y-auto scrollbar-thin">
-      {/* Hero badge */}
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/20">
-        <Sparkles className="w-8 h-8 text-white" />
+    <div className="h-full flex flex-col items-center justify-start text-center py-12 px-4 overflow-y-auto scrollbar-thin">
+      {/* Hero badge with glow */}
+      <div className="relative mb-5">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-3xl blur-2xl opacity-40"></div>
+        <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center glow-violet">
+          <Sparkles className="w-10 h-10 text-white" />
+        </div>
       </div>
 
       {/* Greeting */}
-      <h2 className="text-xl font-bold mb-1 bg-gradient-to-r from-violet-500 to-fuchsia-500 bg-clip-text text-transparent">
+      <h2 className="text-2xl font-bold mb-2 text-gradient-violet">
         {isAr ? "ماذا تريد أن تبني اليوم؟" : "What do you want to build today?"}
       </h2>
-      <p className="text-sm text-muted-foreground max-w-lg mb-5">
+      <p className="text-sm text-muted-foreground max-w-md mb-6 leading-relaxed">
         {isAr
           ? "منصة ذكاء اصطناعي مستقلة — صف هدفاً وسيتولّى MiMo البحث والتخطيط والبناء والاختبار والتسليم."
           : "An autonomous AI engineering platform — describe a goal and MiMo will research, plan, build, test, and deliver."}
@@ -606,12 +609,12 @@ function EmptyState({
             <button
               key={template.id}
               onClick={() => onSelect(template)}
-              className="group text-left p-3 rounded-lg border bg-card hover:border-violet-400/50 hover:shadow-md hover:shadow-violet-500/5 transition-all"
+              className="group text-left p-3.5 rounded-xl border border-border bg-card/50 hover:border-primary/40 hover-lift transition-smooth"
             >
               <div className="flex items-start gap-2.5">
                 <div
                   className={cn(
-                    "w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center flex-shrink-0 shadow-sm",
+                    "w-8 h-8 rounded-lg bg-gradient-to-br flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-110 transition-transform",
                     template.gradient
                   )}
                 >
@@ -706,15 +709,15 @@ function MessageBubble({ message }: { message: import("@/lib/ai-client").Message
   };
 
   return (
-    <div className="flex gap-3 group" dir={getDirection(locale)}>
+    <div className="flex gap-3 group max-w-3xl mx-auto" dir={getDirection(locale)}>
       <div
         className={cn(
-          "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
+          "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
           isUser
             ? "bg-muted"
             : agent
             ? agent.color
-            : "bg-gradient-to-br from-violet-500 to-fuchsia-500"
+            : "bg-gradient-to-br from-violet-500 to-fuchsia-500 glow-violet"
         )}
       >
         {renderAgentAvatar()}

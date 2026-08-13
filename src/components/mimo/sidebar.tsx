@@ -83,16 +83,16 @@ export function Sidebar() {
   };
 
   return (
-    <div className="w-64 border-r bg-card/30 flex flex-col h-full">
+    <div className="w-60 border-r border-sidebar-border bg-sidebar flex flex-col h-full">
       {/* Brand */}
-      <div className="p-3 border-b">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+      <div className="px-3 py-3 border-b border-sidebar-border">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center glow-violet">
             <Zap className="w-4 h-4 text-white" />
           </div>
-          <div>
-            <div className="text-sm font-bold leading-tight">MiMo AI</div>
-            <div className="text-[10px] text-muted-foreground leading-tight">
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-bold leading-tight text-sidebar-foreground">MiMo AI</div>
+            <div className="text-[10px] text-sidebar-foreground/50 leading-tight">
               Engineering Platform
             </div>
           </div>
@@ -142,14 +142,14 @@ export function Sidebar() {
                 <div
                   key={conv.id}
                   className={cn(
-                    "group w-full text-left p-2 rounded-md transition-colors text-xs",
+                    "group w-full text-left px-2.5 py-2 rounded-lg transition-smooth text-xs",
                     currentConversation?.id === conv.id
-                      ? "bg-violet-500/15 text-foreground"
-                      : "hover:bg-muted/50 text-muted-foreground"
+                      ? "bg-primary/10 text-sidebar-foreground ring-1 ring-primary/20"
+                      : "hover:bg-sidebar-accent text-sidebar-foreground/70"
                   )}
                 >
-                  <div className="flex items-start gap-1.5">
-                    <MessageSquare className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <div className="flex items-start gap-2">
+                    <MessageSquare className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 opacity-60" />
                     <div className="flex-1 min-w-0">
                       {isEditing ? (
                         <Input
