@@ -235,36 +235,14 @@ export function Sidebar() {
         </div>
       </ScrollArea>
 
-      {/* System state */}
+      {/* System state — minimal footer */}
       {systemState && (
-        <div className="p-2 border-t text-[10px]">
-          <div className="grid grid-cols-3 gap-1 text-center">
-            <Stat label="conv" value={systemState.conversations} />
-            <Stat label="tasks" value={systemState.tasks} />
-            <Stat label="mem" value={systemState.memories} />
-            <Stat label="arts" value={systemState.artifacts} />
-            <Stat label="decs" value={systemState.decisions} />
-            <Stat label="logs" value={systemState.executionLogs} />
-          </div>
-          <div className="mt-2 flex items-center justify-between">
-            <Badge variant="outline" className="text-[9px] py-0">
-              {systemState.agents} agents
-            </Badge>
-            <Badge variant="outline" className="text-[9px] py-0">
-              {systemState.skills} skills
-            </Badge>
-          </div>
+        <div className="px-3 py-2 border-t border-sidebar-border flex items-center justify-between text-[10px] text-sidebar-foreground/40">
+          <span>{systemState.agents} agents</span>
+          <span>{systemState.skills} skills</span>
+          <span>{systemState.tools} tools</span>
         </div>
       )}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="bg-muted/40 rounded p-1">
-      <div className="font-semibold text-foreground">{value}</div>
-      <div className="text-muted-foreground">{label}</div>
     </div>
   );
 }

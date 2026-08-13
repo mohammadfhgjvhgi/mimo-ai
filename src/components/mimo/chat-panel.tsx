@@ -324,35 +324,22 @@ export function ChatPanel() {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <div className="border-b border-border px-4 py-2.5 flex items-center justify-between gap-3 bg-card/30 backdrop-blur-xl">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center glow-violet flex-shrink-0">
-            <Sparkles className="w-4 h-4 text-white" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold leading-tight truncate">
-              {currentConversation?.title ?? t("chat.new", locale)}
-            </h2>
-            <p className="text-[11px] text-muted-foreground leading-tight truncate">
-              {locale === "ar" ? "منصة MiMo للذكاء الهندسي" : "MiMo AI Engineering Intelligence"}
-            </p>
-          </div>
-        </div>
-
+      {/* Header — compact, no redundant avatar (topbar has brand) */}
+      <div className="h-10 border-b border-border px-4 flex items-center justify-between gap-2 flex-shrink-0">
+        <h2 className="text-xs font-medium text-muted-foreground truncate">
+          {currentConversation?.title ?? t("chat.new", locale)}
+        </h2>
         <div className="flex items-center gap-2">
-          {/* Token / cost HUD — P1-4 */}
           {messages.length > 0 && (
             <TokenHud messages={messages} locale={locale} />
           )}
-
           <Button
             variant={autonomousMode ? "default" : "outline"}
             size="sm"
             onClick={() => setAutonomousMode(!autonomousMode)}
-            className={cn("gap-1.5", autonomousMode && "bg-amber-500 hover:bg-amber-600 text-white")}
+            className={cn("h-7 gap-1.5 text-[11px]", autonomousMode && "bg-amber-500 hover:bg-amber-600 text-white border-0")}
           >
-            <Zap className="w-3.5 h-3.5" />
+            <Zap className="w-3 h-3" />
             Autonomous
           </Button>
         </div>
